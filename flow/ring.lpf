@@ -1,0 +1,10 @@
+# ring-harness constraints: clk on the 25MHz global pin, aggressive target
+LOCATE COMP "clk"     SITE "G2";
+IOBUF  PORT "clk"     PULLMODE=NONE IO_TYPE=LVCMOS33;
+FREQUENCY PORT "clk" 300 MHZ;
+
+LOCATE COMP "perturb" SITE "C2";
+IOBUF  PORT "perturb" IO_TYPE=LVCMOS33;
+LOCATE COMP "q"       SITE "B2";
+IOBUF  PORT "q"       IO_TYPE=LVCMOS33;
+

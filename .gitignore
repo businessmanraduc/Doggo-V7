@@ -1,0 +1,7 @@
+build/
+*.json
+*.bit
+*.config
+*.log
+obj_dir/
+*.vcd
