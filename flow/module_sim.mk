@@ -6,12 +6,13 @@ MOD   ?=
 DIR   ?= .
 TOP   ?= $(MOD)_tb
 BUILD := $(DIR)/build
+INC   := rtl/common
 SRCS  := $(filter-out %_ring.sv,$(wildcard $(DIR)/*.sv))
 
 .PHONY: sim clean
 
 sim:
-	verilator --binary --timing -j 0 -Mdir $(BUILD) --top-module $(TOP) $(SRCS)
+	verilator --binary --timing -j 0 -I$(INC) -Mdir $(BUILD) --top-module $(TOP) $(SRCS)
 	@$(BUILD)/V$(TOP)
 
 clean:
