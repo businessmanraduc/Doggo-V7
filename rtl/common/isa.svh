@@ -131,20 +131,24 @@ localparam int IRQ_MSI = 3;
 localparam int IRQ_MTI = 7;
 localparam int IRQ_MEI = 11;
 
-// ---- ALU operation -------------------------------------------------------------
-typedef enum logic [3:0] {
-  ALU_ADD   = 4'h0,
-  ALU_SUB   = 4'h1,
-  ALU_AND   = 4'h2,
-  ALU_OR    = 4'h3,
-  ALU_XOR   = 4'h4,
-  ALU_SLL   = 4'h5,
-  ALU_SRL   = 4'h6,
-  ALU_SRA   = 4'h7,
-  ALU_SLT   = 4'h8,
-  ALU_SLTU  = 4'h9,
-  ALU_PASSB = 4'hA
+// ---- ALU operation: add / logic / compare FU -----------------------------------
+typedef enum logic [2:0] {
+  ALU_ADD   = 3'd0,
+  ALU_SUB   = 3'd1,
+  ALU_AND   = 3'd2,
+  ALU_OR    = 3'd3,
+  ALU_XOR   = 3'd4,
+  ALU_SLT   = 3'd5,
+  ALU_SLTU  = 3'd6,
+  ALU_PASSB = 3'd7
 } aluOp_t;
+
+// ---- Shift operation: shifter FU -----------------------------------------------
+typedef enum logic [1:0] {
+  SHIFT_SLL = 2'd0,
+  SHIFT_SRL = 2'd1,
+  SHIFT_SRA = 2'd2
+} shiftOp_t;
 
 // ---- CSR operation (from func3[1:0]) -------------------------------------------
 typedef enum logic [1:0] {

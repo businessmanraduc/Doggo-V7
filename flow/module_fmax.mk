@@ -1,12 +1,13 @@
 # ================================================================================
 #  module_fmax.mk -- per-module Fmax (ring synth + seed sweep)
-#  usage: make -f flow/module_fmax.mk MOD=<name> DIR=<folder> [SEEDS=n TW=90]
+#  usage: make -f flow/module_fmax.mk MOD=<name> DIR=<folder> [SEEDS=n TW=100 JOBS=n]
 # ================================================================================
 MOD   ?=
 DIR   ?= .
 TOP   ?= $(MOD)_ring
 SEEDS ?= 8
-TW    ?= 90
+TW    ?= 100
+JOBS  ?= $(shell nproc)
 BUILD := $(DIR)/build
 INC   := rtl/common
 SRCS  := $(filter-out %_tb.sv,$(wildcard $(DIR)/*.sv)) flow/ring_harness.sv
@@ -16,7 +17,7 @@ LPF   := flow/ring.lpf
 .PHONY: fmax clean
 
 fmax: $(BUILD)/$(MOD).json
-	@flow/sweep.sh $(MOD) $< $(LPF) $(TOP) $(SEEDS) $(TW) $(DIR)/fmax.md
+	@flow/sweep.sh $(MOD) $< $(LPF) $(TOP) $(SEEDS) $(TW) $(DIR)/fmax.md $(JOBS)
 
 $(BUILD)/$(MOD).json: $(SRCS) $(HDRS)
 	@mkdir -p $(BUILD)

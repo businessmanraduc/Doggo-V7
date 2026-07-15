@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 #  sweep.sh  --  N-seed nextpnr sweep -> floor/mean/ceil + per-seed census
-#  args: MOD JSON LPF TOP SEEDS TW OUT
+#  args: MOD JSON LPF TOP SEEDS TW OUT [JOBS]
 # ============================================================================
 set -euo pipefail
 mod=$1
@@ -11,20 +11,31 @@ top=$4
 seeds=$5
 tw=$6
 out=$7
+jobs=${8:-1}
 logdir=$(dirname "$json")
+res="$logdir/results.tsv"
 
-vals=()
-census=()
-for s in $(seq 1 "$seeds"); do
+echo "  sweeping $seeds seeds at tw=$tw, $jobs at a time"
+
+seq 1 "$seeds" | xargs -P "$jobs" -I{} bash -c '
+  s=$1; logdir=$2; json=$3; lpf=$4; tw=$5
   log="$logdir/s$s.log"
   nextpnr-ecp5 --85k --package CABGA381 --json "$json" --lpf "$lpf" \
     --seed "$s" --placer-heap-timingweight "$tw" --timing-allow-fail \
     --textcfg /dev/null >"$log" 2>&1 || true
   brief=$(python3 flow/critpath.py "$log" --brief 2>/dev/null || echo "  0.00 MHz  ? -> ?")
+  printf "%s\t%s\n" "$s" "$brief"
+' _ {} "$logdir" "$json" "$lpf" "$tw" >"$res"
+
+sort -n -o "$res" "$res"
+
+vals=()
+census=()
+while IFS=$'\t' read -r s brief; do
   vals+=("$(printf '%s' "$brief" | awk '{print $1}')")
   census+=("| $s | $brief |")
   printf '  seed %2d : %s\n' "$s" "$brief"
-done
+done <"$res"
 
 sorted=$(printf '%s\n' "${vals[@]}" | sort -n)
 floor=$(printf '%s' "$sorted" | head -1)
