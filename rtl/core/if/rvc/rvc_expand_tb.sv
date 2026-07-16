@@ -70,7 +70,7 @@ module rvc_expand_tb;
   endfunction
 
   initial begin
-    // ---- known byte-exact pairs (checked against binutils disassembly) -----------
+    // ---- known byte-exact pairs (checked against binutils disassembly) ---------
     check(16'h0001, NOP_INSTR,     "c.nop");
     check(16'h8082, 32'h0000_8067, "c.jr ra (ret)");
     check(16'h852E, 32'h00B0_0533, "c.mv a0,a1");
@@ -78,7 +78,7 @@ module rvc_expand_tb;
     check(16'h4505, 32'h0010_0513, "c.li a0,1");
     check(16'hA001, 32'h0000_006F, "c.j .+0");
 
-    // ---- Q0: random field sweeps --------------------------------------------------
+    // ---- Q0: random field sweeps -----------------------------------------------
     for (int k = 0; k < N; k++) begin
       automatic logic [9:0] u  = {8'($urandom()), 2'b00};   // nzuimm[9:2] << 2
       automatic logic [6:0] w  = {5'($urandom()), 2'b00};   // uimm[6:2] << 2
@@ -94,7 +94,7 @@ module rvc_expand_tb;
             encS({5'b0, w}, xp(rb), xp(ra)), "c.sw");
     end
 
-    // ---- Q1: random field sweeps --------------------------------------------------
+    // ---- Q1: random field sweeps -----------------------------------------------
     for (int k = 0; k < N; k++) begin
       automatic logic [5:0]  i6  = 6'($urandom());
       automatic logic [4:0]  rd  = 5'($urandom());
@@ -138,7 +138,7 @@ module rvc_expand_tb;
             encB({{4{bo[8]}}, bo}, xp(ra), F3_BNE), "c.bnez");
     end
 
-    // ---- Q2: random field sweeps --------------------------------------------------
+    // ---- Q2: random field sweeps -----------------------------------------------
     for (int k = 0; k < N; k++) begin
       automatic logic [4:0] rd  = 5'($urandom());
       automatic logic [4:0] rs2 = 5'($urandom());
@@ -164,7 +164,7 @@ module rvc_expand_tb;
             encS({4'b0, off}, rs2, 5'd2), "c.swsp");
     end
 
-    // ---- reserved / unsupported space ----------------------------------------------
+    // ---- reserved / unsupported space ------------------------------------------
     checkIllegal(16'h0000,                                         "all zeros");
     checkIllegal({CF3_ADDI4SPN, 8'b0, 3'd5, CQ0},                  "c.addi4spn imm=0");
     checkIllegal({3'b001, 11'h2A5, CQ0},                           "c.fld");

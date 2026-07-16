@@ -1,7 +1,7 @@
 `include "isa.svh"
-// =================================================================================
+// ================================================================================
 //  alu_tb -- directed edge cases (hand-computed) + randomized model sweep
-// =================================================================================
+// ================================================================================
 
 module alu_tb;
   logic [31:0] lhs, rhs, result;
@@ -43,19 +43,19 @@ module alu_tb;
   endtask
 
   initial begin
-    // ---- add / sub: wrap-around at the 32-bit boundary --------------------------
+    // ---- add / sub: wrap-around at the 32-bit boundary -------------------------
     check(ALU_ADD,  32'd0,         32'd0,         32'd0,         "add zero");
     check(ALU_ADD,  32'h1234_5678, 32'h8765_4321, 32'h9999_9999, "add plain");
     check(ALU_ADD,  32'hFFFF_FFFF, 32'd1,         32'd0,         "add wrap");
     check(ALU_SUB,  32'd0,         32'd1,         32'hFFFF_FFFF, "sub borrow");
     check(ALU_SUB,  32'h9999_9999, 32'h8765_4321, 32'h1234_5678, "sub plain");
 
-    // ---- bitwise ----------------------------------------------------------------
+    // ---- bitwise ---------------------------------------------------------------
     check(ALU_AND,  32'hF0F0_F0F0, 32'hFF00_FF00, 32'hF000_F000, "and");
     check(ALU_OR,   32'hF0F0_F0F0, 32'h0F0F_0F0F, 32'hFFFF_FFFF, "or");
     check(ALU_XOR,  32'hFFFF_FFFF, 32'hAAAA_AAAA, 32'h5555_5555, "xor");
 
-    // ---- set-if-less-than: signed/unsigned --------------------------------------
+    // ---- set-if-less-than: signed/unsigned -------------------------------------
     check(ALU_SLT,  32'hFFFF_FFFF, 32'd1,         32'd1,         "slt -1 < 1");
     check(ALU_SLT,  32'd1,         32'hFFFF_FFFF, 32'd0,         "slt 1 < -1");
     check(ALU_SLT,  32'd5,         32'd5,         32'd0,         "slt equal");
@@ -64,10 +64,10 @@ module alu_tb;
     check(ALU_SLTU, 32'd1,         32'hFFFF_FFFF, 32'd1,         "sltu 1 < max");
     check(ALU_SLTU, 32'd5,         32'd5,         32'd0,         "sltu equal");
 
-    // ---- pass-through ignores lhs entirely --------------------------------------
+    // ---- pass-through ignores lhs entirely -------------------------------------
     check(ALU_PASSB, 32'hDEAD_BEEF, 32'h1234_5000, 32'h1234_5000, "passb");
 
-    // ---- randomized sweep over all 8 encodings ----------------------------------
+    // ---- randomized sweep over all 8 encodings ---------------------------------
     for (int i = 0; i < 5000; i++) begin
       automatic logic [31:0] a = $urandom();
       automatic logic [31:0] b = $urandom();

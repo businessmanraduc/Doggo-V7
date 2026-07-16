@@ -1,8 +1,8 @@
 `include "isa.svh"
-// =================================================================================
+// ================================================================================
 //  shifter_tb -- directed edge cases (hand-computed) + randomized model sweep
 //  every check drives fresh inputs each cycle, so the pipe is exercised at rate
-// =================================================================================
+// ================================================================================
 
 module shifter_tb;
   logic        clk = 0;
@@ -44,7 +44,7 @@ module shifter_tb;
   endtask
 
   initial begin
-    // ---- left: coarse/fine boundaries of the {amount[4:3], amount[2:0]} split ---
+    // ---- left: coarse/fine boundaries of the {amount[4:3], amount[2:0]} split --
     check(SHIFT_SLL, 32'd1, 5'd0,  32'h0000_0001, "sll by 0");
     check(SHIFT_SLL, 32'd1, 5'd1,  32'h0000_0002, "sll by 1");
     check(SHIFT_SLL, 32'd1, 5'd7,  32'h0000_0080, "sll by 7 fine max");
@@ -55,14 +55,14 @@ module shifter_tb;
     check(SHIFT_SLL, 32'd1, 5'd31, 32'h8000_0000, "sll by 31");
     check(SHIFT_SLL, 32'hFFFF_FFFF, 5'd16, 32'hFFFF_0000, "sll bleed out");
 
-    // ---- logical right: zero fill, never sign fill ------------------------------
+    // ---- logical right: zero fill, never sign fill -----------------------------
     check(SHIFT_SRL, 32'h8000_0000, 5'd1,  32'h4000_0000, "srl by 1");
     check(SHIFT_SRL, 32'h8000_0000, 5'd31, 32'h0000_0001, "srl by 31");
     check(SHIFT_SRL, 32'hFFFF_FFFF, 5'd16, 32'h0000_FFFF, "srl zero fill");
     check(SHIFT_SRL, 32'h8000_0000, 5'd8,  32'h0080_0000, "srl by 8 coarse");
     check(SHIFT_SRL, 32'hDEAD_BEEF, 5'd0,  32'hDEAD_BEEF, "srl by 0");
 
-    // ---- arithmetic right: sign fill across BOTH stages -------------------------
+    // ---- arithmetic right: sign fill across BOTH stages ------------------------
     check(SHIFT_SRA, 32'h8000_0000, 5'd0,  32'h8000_0000, "sra by 0");
     check(SHIFT_SRA, 32'h8000_0000, 5'd1,  32'hC000_0000, "sra by 1");
     check(SHIFT_SRA, 32'h8000_0000, 5'd8,  32'hFF80_0000, "sra by 8 coarse");
@@ -73,7 +73,7 @@ module shifter_tb;
     check(SHIFT_SRA, 32'h4000_0000, 5'd1,  32'h2000_0000, "sra positive");
     check(SHIFT_SRA, 32'h7FFF_FFFF, 5'd31, 32'h0000_0000, "sra max positive");
 
-    // ---- randomized full-rate sweep ---------------------------------------------
+    // ---- randomized full-rate sweep --------------------------------------------
     for (int i = 0; i < 5000; i++) begin
       automatic logic [31:0] v = $urandom();
       automatic logic [4:0]  a = 5'($urandom_range(0, 31));
