@@ -1,6 +1,7 @@
-// ===================================================================================
+`include "isa.svh"
+// =================================================================================
 //  rob_tb -- complete out of order, commit in order
-// ===================================================================================
+// =================================================================================
 
 module rob_tb;
   localparam int DEPTH = 16;
@@ -90,10 +91,10 @@ module rob_tb;
     dispatch(32'h1004, 5'd4, 0, t1);
     dispatch(32'h1008, 5'd7, 0, t2);
     dispatch(32'h100C, 5'd10, 0, t3);
-    chk("B: ticket 0", int'(t0), 0);
-    chk("B: ticket 1", int'(t1), 1);
-    chk("B: ticket 2", int'(t2), 2);
-    chk("B: ticket 3", int'(t3), 3);
+    check("B: ticket 0", int'(t0), 0);
+    check("B: ticket 1", int'(t1), 1);
+    check("B: ticket 2", int'(t2), 2);
+    check("B: ticket 3", int'(t3), 3);
 
     // ---- C: complete OUT of order; head is not done, so nothing may commit --------
     complete(t1, 32'hAAAA_0001, 0, TRAP_ILLEGAL_INSTR);
@@ -113,18 +114,18 @@ module rob_tb;
     complete(t0, 32'hAAAA_0000, 0, TRAP_ILLEGAL_INSTR);
     #1 cmt_accept = 1;
     #1;
-    chk("E: commit 0 pc",     int'(cmt_pc),     32'h1000);
-    chk("E: commit 0 rd",     int'(cmt_archDestReg), 1);
-    chk("E: commit 0 result", int'(cmt_result), 32'hAAAA_0000);
+    check("E: commit 0 pc",     int'(cmt_pc),     32'h1000);
+    check("E: commit 0 rd",     int'(cmt_archDestReg), 1);
+    check("E: commit 0 result", int'(cmt_result), 32'hAAAA_0000);
     if (!cmt_valid) fail("E: head done but cmt_valid clear");
     @(posedge clk); #1;
-    chk("E: commit 1 pc",     int'(cmt_pc),     32'h1004);
-    chk("E: commit 1 result", int'(cmt_result), 32'hAAAA_0001);
+    check("E: commit 1 pc",     int'(cmt_pc),     32'h1004);
+    check("E: commit 1 result", int'(cmt_result), 32'hAAAA_0001);
     @(posedge clk); #1;
-    chk("E: commit 2 pc",     int'(cmt_pc),     32'h1008);
+    check("E: commit 2 pc",     int'(cmt_pc),     32'h1008);
     @(posedge clk); #1;
-    chk("E: commit 3 pc",     int'(cmt_pc),     32'h100C);
-    chk("E: commit 3 rd",     int'(cmt_archDestReg), 10);
+    check("E: commit 3 pc",     int'(cmt_pc),     32'h100C);
+    check("E: commit 3 rd",     int'(cmt_archDestReg), 10);
     @(posedge clk); #1;
     if (cmt_valid) fail("E: still committing after the last entry");
     cmt_accept = 0;
@@ -150,8 +151,8 @@ module rob_tb;
     #1;
     if (!cmt_valid)   fail("H: faulting entry never became committable");
     if (!cmt_exception) fail("H: exception lost");
-    chk("H: cause", int'(cmt_cause), int'(TRAP_LOAD_MISALIGN));
-    chk("H: pc",    int'(cmt_pc),    32'h3000);
+    check("H: cause", int'(cmt_cause), int'(TRAP_LOAD_MISALIGN));
+    check("H: pc",    int'(cmt_pc),    32'h3000);
 
     if (errors == 0) $display("PASS  rob");
     else             $fatal(1, "FAIL  rob (%0d errors)", errors);

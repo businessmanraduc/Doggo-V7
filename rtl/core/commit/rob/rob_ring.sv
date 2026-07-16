@@ -6,7 +6,7 @@
 
 module rob_ring (
   input  logic clk,
-  inout  logic perturb,
+  input  logic perturb,
   output logic q
 );
 
