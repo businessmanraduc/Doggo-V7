@@ -1,7 +1,7 @@
 `include "isa.svh"
-// =================================================================================
+// ================================================================================
 //  PHANTOoOM-32 -- Reorder Buffer
-// =================================================================================
+// ================================================================================
 //  Out-of-Order results wait to become in-order effects.
 //
 //  Three access points:
@@ -10,7 +10,7 @@
 //    commit     in-order,      at head     -- retires/fires trap
 //
 //  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): 160.15 / 183.73 / 199.56
-// =================================================================================
+// ================================================================================
 module rob #(
   parameter int DEPTH = 16,
   parameter int IDX_W = $clog2(DEPTH)
@@ -19,7 +19,7 @@ module rob #(
   input  logic             resetn,
   input  logic             flush,               // trap/branch mispredict
 
-  // ---- dispatch: allocate at tail, in program order -----------------------------
+  // ---- dispatch: allocate at tail, in program order ----------------------------
   input  logic             disp_valid,
   input  logic [31:0]      disp_pc,
   input  logic             disp_regWrite,
@@ -28,14 +28,14 @@ module rob #(
   output logic             disp_ready,          // ROB not full
   output logic [IDX_W-1:0] disp_idx,            // the ticket
 
-  // ---- completion: a functional unit cashes its ticket --------------------------
+  // ---- completion: a functional unit cashes its ticket -------------------------
   input  logic             cmpl_valid,
   input  logic [IDX_W-1:0] cmpl_idx,
   input  logic [31:0]      cmpl_result,
   input  logic             cmpl_exception,
   input  trapCause_t       cmpl_cause,
 
-  // ---- forwarding: issue-stage operand reads, combinational ---------------------
+  // ---- forwarding: issue-stage operand reads, combinational --------------------
   input  logic [IDX_W-1:0] fwd_idxA,
   output logic [31:0]      fwd_dataA,
   output logic             fwd_doneA,
@@ -43,7 +43,7 @@ module rob #(
   output logic [31:0]      fwd_dataB,
   output logic             fwd_doneB,
 
-  // ---- commit: retire the head, in program order --------------------------------
+  // ---- commit: retire the head, in program order -------------------------------
   output logic             cmt_valid,
   output logic [31:0]      cmt_pc,
   output logic             cmt_regWrite,
@@ -77,17 +77,17 @@ module rob #(
   assign doDisp  = disp_valid && disp_ready;
   assign doCmt   = cmt_valid  && cmt_accept;
 
-  // ---- dispatch -----------------------------------------------------------------
+  // ---- dispatch ----------------------------------------------------------------
   assign disp_ready = !full;
   assign disp_idx   = tailIdx;
 
-  // ---- forwarding ---------------------------------------------------------------
+  // ---- forwarding --------------------------------------------------------------
   assign fwd_dataA  = resultMem[fwd_idxA];
   assign fwd_doneA  = done[fwd_idxA];
   assign fwd_dataB  = resultMem[fwd_idxB];
   assign fwd_doneB  = done[fwd_idxB];
 
-  // ---- commit -------------------------------------------------------------------
+  // ---- commit ------------------------------------------------------------------
   logic [EXCP_W-1:0] excpRd;
   assign cmt_valid     = !empty && done[headIdx];
   assign {cmt_pc, cmt_regWrite, cmt_archDestReg, cmt_isStore} = metaMem[headIdx];
@@ -96,7 +96,7 @@ module rob #(
   assign cmt_exception = excpRd[EXCP_W-1];
   assign cmt_cause     = trapCause_t'(excpRd[EXCP_W-2:0]);
 
-  // ---- pointers -----------------------------------------------------------------
+  // ---- pointers ----------------------------------------------------------------
   always_ff @(posedge clk) begin
     if (!resetn || flush) begin
       head  <= '0;
@@ -110,7 +110,7 @@ module rob #(
     end
   end
 
-  // ---- done bits: completion sets, dispatch clears reused slot ------------------
+  // ---- done bits: completion sets, dispatch clears reused slot -----------------
   logic [DEPTH-1:0] setMask, clrMask;
   always_comb begin
     setMask = cmpl_valid ? (DEPTH'(1) << cmpl_idx) : '0;
@@ -121,14 +121,14 @@ module rob #(
     else                  done <= (done | setMask) & ~clrMask;
   end
 
-  // ---- metadata: written once at dispatch ---------------------------------------
+  // ---- metadata: written once at dispatch --------------------------------------
   always_ff @(posedge clk) begin
     if (doDisp) begin
       metaMem[tailIdx] <= {disp_pc, disp_regWrite, disp_archDestReg, disp_isStore};
     end
   end
 
-  // ---- result and exception: written once at completion -------------------------
+  // ---- result and exception: written once at completion ------------------------
   always_ff @(posedge clk) begin
     if (cmpl_valid) begin
       resultMem[cmpl_idx] <= cmpl_result;

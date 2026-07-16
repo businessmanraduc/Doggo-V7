@@ -1,7 +1,7 @@
 `include "isa.svh"
-// =================================================================================
+// ================================================================================
 //  rob_tb -- complete out of order, commit in order
-// =================================================================================
+// ================================================================================
 
 module rob_tb;
   localparam int DEPTH = 16;
@@ -82,11 +82,11 @@ module rob_tb;
     #1 resetn = 1;
     @(posedge clk); #1;
 
-    // ---- A: empty after reset -----------------------------------------------------
+    // ---- A: empty after reset --------------------------------------------------
     if (cmt_valid)  fail("A: cmt_valid set while empty");
     if (!disp_ready) fail("A: not ready while empty");
 
-    // ---- B: dispatch hands out sequential tickets ---------------------------------
+    // ---- B: dispatch hands out sequential tickets ------------------------------
     dispatch(32'h1000, 5'd1, 0, t0);   // the slow one (a div, say)
     dispatch(32'h1004, 5'd4, 0, t1);
     dispatch(32'h1008, 5'd7, 0, t2);
@@ -96,21 +96,21 @@ module rob_tb;
     check("B: ticket 2", int'(t2), 2);
     check("B: ticket 3", int'(t3), 3);
 
-    // ---- C: complete OUT of order; head is not done, so nothing may commit --------
+    // ---- C: complete OUT of order; head is not done, so nothing may commit -----
     complete(t1, 32'hAAAA_0001, 0, TRAP_ILLEGAL_INSTR);
     if (cmt_valid) fail("C: committed with an undone head");
     complete(t3, 32'hAAAA_0003, 0, TRAP_ILLEGAL_INSTR);
     complete(t2, 32'hAAAA_0002, 0, TRAP_ILLEGAL_INSTR);
     if (cmt_valid) fail("C: committed out of order");
 
-    // ---- D: forward an uncommitted result (the whole point) -----------------------
+    // ---- D: forward an uncommitted result (the whole point) --------------------
     #1 fwd_idxA = t1; fwd_idxB = t0;
     #1;
     if (!fwd_doneA)                   fail("D: entry 1 done but fwd_doneA clear");
     if (fwd_dataA !== 32'hAAAA_0001)  fail("D: forwarded wrong data for entry 1");
     if (fwd_doneB)                    fail("D: entry 0 not done but fwd_doneB set");
 
-    // ---- E: head completes -> everything drains IN ORDER --------------------------
+    // ---- E: head completes -> everything drains IN ORDER -----------------------
     complete(t0, 32'hAAAA_0000, 0, TRAP_ILLEGAL_INSTR);
     #1 cmt_accept = 1;
     #1;
@@ -130,14 +130,14 @@ module rob_tb;
     if (cmt_valid) fail("E: still committing after the last entry");
     cmt_accept = 0;
 
-    // ---- F: fills up exactly at DEPTH ---------------------------------------------
+    // ---- F: fills up exactly at DEPTH ------------------------------------------
     for (int i = 0; i < DEPTH; i++) begin
       if (!disp_ready) fail($sformatf("F: not ready at entry %0d", i));
       dispatch(32'h2000 + i*4, 5'(i), 0, tk);
     end
     if (disp_ready) fail("F: still ready after DEPTH dispatches");
 
-    // ---- G: flush empties it ------------------------------------------------------
+    // ---- G: flush empties it ---------------------------------------------------
     #1 flush = 1;
     @(posedge clk); #1;
     flush = 0;
@@ -145,7 +145,7 @@ module rob_tb;
     if (!disp_ready) fail("G: not ready after flush");
     if (cmt_valid)   fail("G: cmt_valid set after flush");
 
-    // ---- H: an exception rides through to commit ----------------------------------
+    // ---- H: an exception rides through to commit -------------------------------
     dispatch(32'h3000, 5'd2, 0, tk);
     complete(tk, 32'h0, 1, TRAP_LOAD_MISALIGN);
     #1;
