@@ -7,7 +7,7 @@
 //  The instruction stream arrives pre-validated, this module caries NO
 //  legality tree.
 //
-//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): 161.26 / 174.83 / 192.79
+//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): 164.77 / 176.62 / 190.33
 // ================================================================================
 module decoder (
   input  logic [31:0] instr,
@@ -80,11 +80,11 @@ module decoder (
         uop.rs1Used  = 1'b1;      uop.imm   = immI;       uop.immUsed = 1'b1;
         uop.regWrite = 1'b1;
         unique case (func3)
+          F3_SLL:  begin uop.fu = FU_SHIFTER; uop.subOp = {1'b0, SHIFT_SLL}; end
           F3_SRL: begin
             uop.fu = FU_SHIFTER;
             uop.subOp = {1'b0, (func7 == F7_ALT) ? SHIFT_SRA : SHIFT_SRL};
           end
-          F3_SLL:  begin uop.fu = FU_SHIFTER; uop.subOp = {1'b0, SHIFT_SLL}; end
           F3_ADD:  begin uop.fu = FU_ALU;     uop.subOp = ALU_ADD;           end
           F3_SLT:  begin uop.fu = FU_ALU;     uop.subOp = ALU_SLT;           end
           F3_SLTU: begin uop.fu = FU_ALU;     uop.subOp = ALU_SLTU;          end
@@ -104,11 +104,11 @@ module decoder (
               uop.fu    = FU_ALU;
               uop.subOp = (func7 == F7_ALT) ? ALU_SUB : ALU_ADD;
             end
+            F3_SLL:  begin uop.fu = FU_SHIFTER; uop.subOp = {1'b0, SHIFT_SLL}; end
             F3_SRL: begin
               uop.fu    = FU_SHIFTER;
               uop.subOp = {1'b0, (func7 == F7_ALT) ? SHIFT_SRA : SHIFT_SRL};
             end
-            F3_SLL:  begin uop.fu = FU_SHIFTER; uop.subOp = {1'b0, SHIFT_SLL}; end
             F3_SLT:  begin uop.fu = FU_ALU;     uop.subOp = ALU_SLT;           end
             F3_SLTU: begin uop.fu = FU_ALU;     uop.subOp = ALU_SLTU;          end
             F3_XOR:  begin uop.fu = FU_ALU;     uop.subOp = ALU_XOR;           end

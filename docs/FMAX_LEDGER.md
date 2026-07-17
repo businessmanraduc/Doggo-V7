@@ -13,7 +13,7 @@ floor / mean / ceiling across the seed sweep.
 | rob | 20 | 100 | 160.15 | 183.73 | 199.56 | 7/20 head -> count, 7/20 done -> full | 2026-07-16 |
 | rvc_expand | 20 | 100 | 181.82 | 187.93 | 196.66 | 20/20 instr16 -> instr32 | 2026-07-16 |
 | dispatch_fifo | 20 | 100 | 196.23 | 215.92 | 232.40 | 20/20 count -> count | 2026-07-16 |
-| decoder | 20 | 100 | 161.26 | 174.83 | 192.79 | 15/20 instr -> uop, 5/20 pc -> uop | 2026-07-18 |
+| decoder | 20 | 100 | 164.77 | 176.62 | 190.33 | 15/20 instr -> uop, 5/20 pc -> uop | 2026-07-18 |
 ## Placer timing-weight calibration
 
 | module | seeds | tw | floor | mean | ceil | spread |
