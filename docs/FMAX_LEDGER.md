@@ -15,6 +15,8 @@ floor / mean / ceiling across the seed sweep.
 | dispatch_fifo | 20 | 100 | 196.23 | 215.92 | 232.40 | 20/20 count -> count | 2026-07-16 |
 | legal32 | 20 | 100 | 165.76 | 186.22 | 194.06 | 20/20 instr -> illegal | 2026-07-17 |
 | decoder | 20 | 100 | 164.77 | 176.62 | 190.33 | 15/20 instr -> uop, 5/20 pc -> uop | 2026-07-18 |
+| regfile | 20 | 100 | 252.91 | 269.23 | 284.98 | 19/20 index -> read data | 2026-07-19 |
+| rat | 20 | 100 | 159.46 | 170.88 | 184.54 | 20/20 commit-clear -> pending | 2026-07-19 |
 ## Placer timing-weight calibration
 
 | module | seeds | tw | floor | mean | ceil | spread |
