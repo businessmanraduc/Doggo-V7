@@ -1,13 +1,15 @@
 # =================================================================================
 #  module_sim.mk -- standalone functional sim of a module's testbench
 #  usage: make -f flow/module_sim.mk MOD=<name> DIR=<folder> [TOP=<name>_tb]
+#         EXTRA="<paths>" adds sources outside DIR (submodule instances)
 # =================================================================================
 MOD   ?=
 DIR   ?= .
+EXTRA ?=
 TOP   ?= $(MOD)_tb
 BUILD := $(DIR)/build
 INC   := rtl/common
-SRCS  := $(filter-out %_ring.sv,$(wildcard $(DIR)/*.sv))
+SRCS  := $(filter-out %_ring.sv,$(wildcard $(DIR)/*.sv)) $(EXTRA)
 
 .PHONY: sim clean
 
