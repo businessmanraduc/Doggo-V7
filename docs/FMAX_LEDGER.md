@@ -22,6 +22,7 @@ floor / mean / ceiling across the seed sweep.
 | bpredict | 20 | 100 | 135.45 | 141.10 | 145.43 | 19/20 BTB BSRAM read -> entryQ | 2026-07-23 |
 | icache | 20 | 100 | 160.18 | 171.08 | 176.12 | 10/20 tag LUTRAM read, 9/20 fill FSM state | 2026-08-03 |
 | linefill | 20 | 100 | 200.08 | 214.66 | 225.63 | 19/20 state -> state, 1/20 sweepCount -> state | 2026-08-03 |
+| fetch_queue | 20 | 100 | 180.41 | 196.22 | 220.46 | 19/20 count -> count, 1/20 flushShadow -> count | 2026-08-03 |
 
 Frontend rows do not stack: `bpredict` is the glue over `btb` + `pht` + the BHR,
 so its number is the same BSRAM read seen through one more level of hierarchy,
