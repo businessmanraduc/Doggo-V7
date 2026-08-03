@@ -8,12 +8,12 @@
 //    byte addr | tag[24:12] | set[11:5] | word-in-line[4:2] | hw[1] | b[0]
 //
 //  Stage map (address presented in F0):
-//    F0 - address fields captured: BSRAM address register, lookupSetQ1, tag delay
-//    F1 - BSRAM read and tag LUTRAM read in flight
-//    F2 - tag compare; word and predict both land at F2/F3 edge
-//    F3 - registered verdict drives way mux, instrWord out
+//    F0 - split the address, arm the memories
+//    F1 - reads in flight
+//    F2 - tag compare; word, verdict, victim land here
+//    F3 - pick way, report, touch PLRU, hand miss to fill engine
 //
-//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): 158.68 / 169.47 / 178.00
+//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
 // ================================================================================
 module icache #(
   parameter int SET_IDX_W = 7,
@@ -21,29 +21,52 @@ module icache #(
   parameter int TAG_W     = 13,
   parameter int WORDIDX_W = SET_IDX_W + WIL_W
 ) (
-  input  logic                 clk,
-  input  logic [31:0]          lookupAddr,
+  input  logic        clk,
+  input  logic        resetn,
 
-  // ---- fill write, driven by miss engine ---------------------------------------
-  input  logic [3:0]           dataWrEnable,
-  input  logic [WORDIDX_W-1:0] dataWrIndex,
-  input  logic [31:0]          dataWrWord,
-  input  logic [3:0]           tagWrEnable,
-  input  logic [SET_IDX_W-1:0] tagWrSet,
-  input  logic [TAG_W-1:0]     tagWrTag,
-  input  logic                 tagWrValid,
+  // ---- fetch port --------------------------------------------------------------
+  input  logic [31:0] lookupAddr,
+  input  logic        lookupValid,
+  output logic [31:0] instrWord,
+  output logic        hit,
+  output logic        fillBusy,
 
-  // ---- read verdict ------------------------------------------------------------
-  output logic [31:0]          instrWord,
-  output logic                 hit,
-  output logic [1:0]           victimWay
+  // ---- memory port -------------------------------------------------------------
+  output logic [31:0] fillAddr,
+  output logic        fillReq,
+  input  logic [31:0] fillRData,
+  input  logic        fillRValid
 );
 
   localparam int WAYS    = 4;
   localparam int OFF_W   = WIL_W + 2;
   localparam int ENTRY_W = TAG_W + 1;
 
-  // ---- address fields ----------------------------------------------------------
+  genvar way, blk;
+
+  // ---- fill engine driven wires ------------------------------------------------
+  logic [3:0]           tagWrEnable;
+  logic [SET_IDX_W-1:0] tagWrSet;
+  logic [TAG_W-1:0]     tagWrTag;
+  logic                 tagWrValid;
+  logic [3:0]           dataWrEnable;
+  logic [WORDIDX_W-1:0] dataWrIndex;
+  logic [31:0]          dataWrWord;
+  logic                 initDone;
+
+  // ---- fetch qualifier, carried F0 to F3 ---------------------------------------
+  logic lookupValidF1, lookupValidF2, lookupValidF3;
+  always_ff @(posedge clk) begin
+    if (!resetn) begin
+      lookupValidF1 <= 1'b0; lookupValidF2 <= 1'b0; lookupValidF3 <= 1'b0;
+    end else begin
+      lookupValidF1 <= lookupValid;
+      lookupValidF2 <= lookupValidF1;
+      lookupValidF3 <= lookupValidF2;
+    end
+  end
+
+  // ---- F0 - split address and arm memories -------------------------------------
   logic [WORDIDX_W-1:0] lookupWordIndex;
   logic [SET_IDX_W-1:0] lookupSet;
   logic [TAG_W-1:0]     lookupTag;
@@ -51,40 +74,27 @@ module icache #(
   assign lookupSet       = lookupAddr[OFF_W +: SET_IDX_W];
   assign lookupTag       = lookupAddr[OFF_W+SET_IDX_W +: TAG_W];
 
-  // ---- lookup pipeline ---------------------------------------------------------
-  logic [SET_IDX_W-1:0] lookupSetQ1;
-  logic [SET_IDX_W-1:0] lookupSetQ2;
-  logic [SET_IDX_W-1:0] lookupSetQ3;
-  logic [TAG_W-1:0]     lookupTagQ1;
-  logic [TAG_W-1:0]     lookupTagQ2;
+  logic [SET_IDX_W-1:0] lookupSetF1;
+  logic [TAG_W-1:0]     lookupTagF1;
   always_ff @(posedge clk) begin
-    lookupSetQ1 <= lookupSet;
-    lookupSetQ2 <= lookupSetQ1;
-    lookupSetQ3 <= lookupSetQ2;
-    lookupTagQ1 <= lookupTag;
-    lookupTagQ2 <= lookupTagQ1;
+    lookupSetF1 <= lookupSet;
+    lookupTagF1 <= lookupTag;
   end
 
-  // ---- tags + valid storage: one LUTRAM per way, compare in F2 -----------------
-  logic [WAYS-1:0] matchVec;
-  genvar way, blk;
+  // ---- F1 - reads in flight + memory initialization ----------------------------
+  logic [ENTRY_W-1:0] tagEntry [0:WAYS-1];
   generate
     for (way = 0; way < WAYS; way++) begin : g_tagWay
       (* ram_style = "distributed" *) logic [ENTRY_W-1:0] tagMem [0:(1<<SET_IDX_W)-1];
-
-      logic [ENTRY_W-1:0] entryQ2;
       always_ff @(posedge clk) begin
         if (tagWrEnable[way]) begin
           tagMem[tagWrSet] <= {tagWrValid, tagWrTag};
         end
-        entryQ2 <= tagMem[lookupSetQ1];
+        tagEntry[way] <= tagMem[lookupSetF1];
       end
-
-      assign matchVec[way] = entryQ2[TAG_W] && (entryQ2[TAG_W-1:0] == lookupTagQ2);
     end
   endgenerate
 
-  // ---- data storage: two ebr18 per way, word valid in F2 -----------------------
   logic [35:0] wrWide; assign wrWide = {4'b0, dataWrWord};
   logic [31:0] readWord [0:WAYS-1];
   generate
@@ -97,71 +107,92 @@ module icache #(
           .rdAddr(lookupWordIndex), .rdData(rawWord[blk*18 +: 18])
         );
       end
-
       assign readWord[way] = rawWord[31:0];
     end
   endgenerate
 
-  // ---- verdict + cache word: available in F3 -----------------------------------
-  logic [WAYS-1:0] hitVecQ;
-  logic [31:0]     heldWord [0:WAYS-1];
+  (* ram_style = "distributed" *) logic [2:0] plruMem [0:(1<<SET_IDX_W)-1];
+  logic [2:0] lookupState; always_ff @(posedge clk) lookupState <= plruMem[lookupSetF1];
 
+  logic [SET_IDX_W-1:0] lookupSetF2;
+  logic [TAG_W-1:0]     lookupTagF2;
   always_ff @(posedge clk) begin
-    hitVecQ <= matchVec;
+    lookupSetF2 <= lookupSetF1;
+    lookupTagF2 <= lookupTagF1;
   end
+
+  // ---- F2 - compare tags, hold everything else ---------------------------------
+  logic [WAYS-1:0] matchVec;
   generate
-    for (way = 0; way < WAYS; way++) begin : g_hold
-      always_ff @(posedge clk) begin
-        heldWord[way] <= readWord[way];
-      end
+    for (way = 0; way < WAYS; way++) begin : g_compare
+      assign matchVec[way] = tagEntry[way][TAG_W] && (tagEntry[way][TAG_W-1:0] == lookupTagF2);
     end
   endgenerate
 
-  logic [1:0] hitWay;
-  assign hit    = |hitVecQ;
-  assign hitWay = {hitVecQ[3] | hitVecQ[2], hitVecQ[3] | hitVecQ[1]};
-
-  // ---- way mux -----------------------------------------------------------------
-  always_comb begin
-    case (hitWay)
-      2'd0:    instrWord = heldWord[0];
-      2'd1:    instrWord = heldWord[1];
-      2'd2:    instrWord = heldWord[2];
-      default: instrWord = heldWord[3];
-    endcase
-  end
-
-  // ---- tree PLRU ---------------------------------------------------------------
-  (*  ram_style = "distributed" *) logic [2:0] plruMem [0:(1<<SET_IDX_W)-1];
-  logic [2:0] lookupState, touchState, touchNext;
+  logic [WAYS-1:0] hitVecF3;
+  logic [31:0]     heldWords [0:WAYS-1];
+  logic [2:0]      touchState;
   always_ff @(posedge clk) begin
-    lookupState <= plruMem[lookupSetQ1];
-    touchState  <= lookupState;
+    hitVecF3   <= matchVec;
+    touchState <= lookupState;
   end
-
-  always_comb begin
-    touchNext    = touchState;
-    touchNext[0] = ~hitWay[1];
-    if (hitWay[1]) begin
-      touchNext[2] = ~hitWay[0];
-    end else begin
-      touchNext[1] = ~hitWay[0];
+  generate
+    for (way = 0; way < WAYS; way++) begin : g_hold
+      always_ff @(posedge clk) heldWords[way] <= readWord[way];
     end
-  end
-  always_ff @(posedge clk) begin
-    if (hit) begin
-      plruMem[lookupSetQ3] <= touchNext;
-    end
-  end
+  endgenerate
 
-  // ---- victim, lined up with hit verdict ---------------------------------------
-  logic [1:0] plruVictim;
+  logic [1:0] plruVictim, victimWay;
   assign plruVictim = lookupState[0]
     ? {1'b1, lookupState[2]}
     : {1'b0, lookupState[1]};
+  always_ff @(posedge clk) victimWay <= plruVictim;
+
+  logic [SET_IDX_W-1:0] lookupSetF3;
+  logic [TAG_W-1:0]     lookupTagF3;
   always_ff @(posedge clk) begin
-    victimWay <= plruVictim;
+    lookupSetF3 <= lookupSetF2;
+    lookupTagF3 <= lookupTagF2;
   end
+
+  // ---- F3 - pick way and report ------------------------------------------------
+  logic [1:0] hitWay;
+  assign hit    = (|hitVecF3) && initDone;
+  assign hitWay = {hitVecF3[3] | hitVecF3[2], hitVecF3[3] | hitVecF3[1]};
+
+  always_comb begin
+    case (hitWay)
+      2'd0:    instrWord = heldWords[0];
+      2'd1:    instrWord = heldWords[1];
+      2'd2:    instrWord = heldWords[2];
+      default: instrWord = heldWords[3];
+    endcase
+  end
+
+  // ---- F3 - aim PLRU tree away from recently used way --------------------------
+  logic [2:0] touchNext;
+  always_comb begin
+    touchNext    = touchState;
+    touchNext[0] = ~hitWay[1];
+    if (hitWay[1]) touchNext[2] = ~hitWay[0];
+    else           touchNext[1] = ~hitWay[0];
+  end
+  always_ff @(posedge clk) begin
+    if (hit) plruMem[lookupSetF3] <= touchNext;
+  end
+
+  // ---- fill engine -------------------------------------------------------------
+  linefill #(
+    .SET_IDX_W(SET_IDX_W), .WIL_W(WIL_W), .TAG_W(TAG_W), .WORDIDX_W(WORDIDX_W)
+  ) u_fill (
+    .clk, .resetn,
+    .missValid (lookupValidF3 && !hit),
+    .missTag(lookupTagF3), .missSet(lookupSetF3), .missVictim(victimWay),
+    .fillAddr, .fillReq, .fillRData, .fillRValid,
+    .dataWrEnable, .dataWrIndex, .dataWrWord,
+    .tagWrEnable, .tagWrSet, .tagWrTag, .tagWrValid,
+    .initDone, .fillBusy
+  );
 
 endmodule
 

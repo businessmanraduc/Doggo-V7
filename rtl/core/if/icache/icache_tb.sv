@@ -1,195 +1,240 @@
 // ================================================================================
-//  icache_tb -- fill lines by hand, then read them back through the pipelined hit
-//  path: hit verdict, way selection, tag miss, invalidation, PLRU rotation.
+//  icache_tb -- drives the cache through its real ports: fetches go in, and
+//  misses are satisfied by a fake memory answering the burst request.
 // ================================================================================
 module icache_tb;
-  localparam int SET_IDX_W = 7;
-  localparam int WORDIDX_W = 10;
-  localparam int TAG_W     = 13;
-  localparam int SETS      = 1 << SET_IDX_W;
-  localparam int LATENCY   = 3;
+  localparam int MEM_LATENCY = 4;
 
   logic clk = 0;
   always #5 clk = ~clk;
 
-  logic [3:0]           dataWrEnable;
-  logic [WORDIDX_W-1:0] dataWrIndex;
-  logic [31:0]          dataWrWord;
-  logic [3:0]           tagWrEnable;
-  logic [SET_IDX_W-1:0] tagWrSet;
-  logic [TAG_W-1:0]     tagWrTag;
-  logic                 tagWrValid;
-
+  logic        resetn;
   logic [31:0] lookupAddr;
+  logic        lookupValid;
   logic [31:0] instrWord;
   logic        hit;
-  logic [1:0]  victimWay;
-  int          errors = 0;
+  logic        fillBusy;
+  logic [31:0] fillAddr;
+  logic        fillReq;
+  logic [31:0] fillRData;
+  logic        fillRValid;
+
+  int errors    = 0;
+  int fillCount = 0;
 
   icache dut (
-    .clk, .lookupAddr,
-    .dataWrEnable, .dataWrIndex, .dataWrWord,
-    .tagWrEnable,  .tagWrSet, .tagWrTag, .tagWrValid,
-    .instrWord, .hit, .victimWay
+    .clk, .resetn,
+    .lookupAddr, .lookupValid, .instrWord, .hit, .fillBusy,
+    .fillAddr, .fillReq, .fillRData, .fillRValid
   );
 
-  // ---- address field helpers ---------------------------------------------------
-  function automatic logic [WORDIDX_W-1:0] wordIndexOf(input logic [31:0] a);
-    return a[2 +: WORDIDX_W];
-  endfunction
-  function automatic logic [SET_IDX_W-1:0] setOf(input logic [31:0] a);
-    return a[5 +: SET_IDX_W];
-  endfunction
-  function automatic logic [TAG_W-1:0] tagOf(input logic [31:0] a);
-    return a[12 +: TAG_W];
-  endfunction
+  // ---- watchdog: a stuck fill hangs a wait(), which looks like nothing ---------
+  initial begin
+    #2000000;
+    $fatal(1, "FAIL  icache: watchdog fired (fillBusy=%b state=%0d)",
+           fillBusy, dut.u_fill.state);
+  end
 
-  // ---- boot sweep: the reason valid can live inside the tag word ---------------
-  task automatic invalidateAll();
-    for (int s = 0; s < SETS; s++) begin
+  // ---- fake memory: one burst of eight words per request -----------------------
+  initial begin
+    fillRValid = 1'b0;
+    fillRData  = '0;
+    forever begin
       @(negedge clk);
-      tagWrEnable = 4'hF; tagWrSet = SET_IDX_W'(s); tagWrTag = '0; tagWrValid = 1'b0;
+      if (fillReq) begin
+        automatic logic [31:0] base = fillAddr;
+        fillCount++;
+        repeat (MEM_LATENCY) @(negedge clk);
+        for (int k = 0; k < 8; k++) begin
+          fillRValid = 1'b1;
+          fillRData  = base + 32'(k * 4);
+          @(negedge clk);
+          fillRValid = 1'b0;
+          @(negedge clk);              // gappy on purpose
+        end
+      end
     end
-    @(negedge clk); tagWrEnable = 4'h0;
+  end
+
+  // ---- one fetch, verdict three cycles later -----------------------------------
+  task automatic fetch(input logic [31:0] a, output logic gotHit,
+                       output logic [31:0] word);
+    @(negedge clk); lookupAddr = a; lookupValid = 1'b1;
+    @(negedge clk); lookupValid = 1'b0;
+    repeat (2) @(negedge clk);
+    gotHit = hit;
+    word   = instrWord;
   endtask
 
-  // ---- place one word of one line into one way ---------------------------------
-  task automatic fillWord(input logic [31:0] a, input logic [31:0] w, input int way);
-    @(negedge clk);
-    dataWrEnable = 4'(1 << way); dataWrIndex = wordIndexOf(a); dataWrWord = w;
-    @(negedge clk); dataWrEnable = 4'h0;
+  // ---- fetch and replay until it lands, the way the frontend will --------------
+  task automatic fetchThroughMiss(input logic [31:0] a, input string note);
+    logic        h;
+    logic [31:0] w;
+    h = 1'b0;
+    for (int attempt = 0; attempt < 4 && !h; attempt++) begin
+      fetch(a, h, w);
+      if (!h) begin
+        wait (fillBusy === 1'b0);
+        repeat (2) @(negedge clk);
+      end
+    end
+    if (!h) begin
+      $error("%-22s addr=%h still missing after a fill", note, a); errors++;
+    end else if (w !== a) begin
+      $error("%-22s addr=%h word=%h (expected %h)", note, a, w, a); errors++;
+    end
   endtask
 
-  task automatic validateLine(input logic [31:0] a, input int way);
-    @(negedge clk);
-    tagWrEnable = 4'(1 << way); tagWrSet = setOf(a); tagWrTag = tagOf(a);
-    tagWrValid  = 1'b1;
-    @(negedge clk); tagWrEnable = 4'h0;
-  endtask
-
-  // ---- one lookup, verdict LATENCY cycles later --------------------------------
-  task automatic checkLookup(
-    input logic [31:0] a, input logic eHit, input logic [31:0] eWord, input string note);
-    @(negedge clk); lookupAddr = a;
-    repeat (LATENCY) @(negedge clk);
-    if (hit !== eHit) begin
-      $error("%-26s addr=%h hit=%b (exp %b)", note, a, hit, eHit);
-      errors++;
-    end else if (eHit && instrWord !== eWord) begin
-      $error("%-26s addr=%h word=%h (exp %h)", note, a, instrWord, eWord);
-      errors++;
+  // ---- power-up garbage, so the boot sweep is actually on trial ----------------
+  task automatic poisonTags();
+    for (int s = 0; s < 128; s++) begin
+      dut.g_tagWay[0].tagMem[s] = {1'b1, 13'h0};
+      dut.g_tagWay[1].tagMem[s] = {1'b1, 13'h0};
+      dut.g_tagWay[2].tagMem[s] = {1'b1, 13'h0};
+      dut.g_tagWay[3].tagMem[s] = {1'b1, 13'h0};
     end
   endtask
 
   initial begin
-    dataWrEnable = '0; tagWrEnable = '0; tagWrValid = '0;
-    dataWrIndex  = '0; dataWrWord  = '0; tagWrSet = '0; tagWrTag = '0;
-    lookupAddr   = '0;
+    resetn = 1'b0; lookupValid = 1'b0; lookupAddr = '0;
+    poisonTags();
+    repeat (3) @(negedge clk);
+    resetn = 1'b1;
 
-    invalidateAll();
+    // ---- no hit may escape while the boot sweep is still running ---------------
+    checkSweepBlocksHits();
 
-    // ---- everything invalid after the sweep ------------------------------------
-    checkLookup(32'h0000_1000, 1'b0, 32'h0, "post-sweep miss");
-    checkLookup(32'h0012_3400, 1'b0, 32'h0, "post-sweep miss 2");
+    // ---- a cold line: miss, fill, then hit with the right word -----------------
+    fetchThroughMiss(32'h0000_1000, "cold line");
+    if (fillCount != 1) begin
+      $error("expected 1 fill, saw %0d", fillCount); errors++;
+    end
 
-    // ---- one line into way 0 ---------------------------------------------------
-    fillWord(32'h0000_1000, 32'hDEAD_BEEF, 0);
-    validateLine(32'h0000_1000, 0);
-    checkLookup(32'h0000_1000, 1'b1, 32'hDEAD_BEEF, "way0 hit");
+    // ---- every word of that line is now present, no further fills --------------
+    checkWholeLine(32'h0000_1000);
+    if (fillCount != 1) begin
+      $error("re-reading a resident line refilled it (%0d fills)", fillCount);
+      errors++;
+    end
 
-    // ---- same set, different tag: still a miss ---------------------------------
-    checkLookup(32'h0010_1000, 1'b0, 32'h0, "same set, other tag");
+    // ---- four tags in one set land in four different ways ----------------------
+    checkWaySpread();
 
-    // ---- a second word inside the same line ------------------------------------
-    fillWord(32'h0000_1004, 32'h1234_5678, 0);
-    checkLookup(32'h0000_1004, 1'b1, 32'h1234_5678, "word 1 of line");
-    checkLookup(32'h0000_1000, 1'b1, 32'hDEAD_BEEF, "word 0 still there");
+    // ---- back-to-back words of a resident line, one per cycle ------------------
+    checkStreaming(32'h0000_1000);
 
-    // ---- the other three ways of the same set ----------------------------------
-    fillWord(32'h0010_1000, 32'hAAAA_0001, 1); validateLine(32'h0010_1000, 1);
-    fillWord(32'h0020_1000, 32'hAAAA_0002, 2); validateLine(32'h0020_1000, 2);
-    fillWord(32'h0030_1000, 32'hAAAA_0003, 3); validateLine(32'h0030_1000, 3);
-    checkLookup(32'h0000_1000, 1'b1, 32'hDEAD_BEEF, "4-way: pick way0");
-    checkLookup(32'h0010_1000, 1'b1, 32'hAAAA_0001, "4-way: pick way1");
-    checkLookup(32'h0020_1000, 1'b1, 32'hAAAA_0002, "4-way: pick way2");
-    checkLookup(32'h0030_1000, 1'b1, 32'hAAAA_0003, "4-way: pick way3");
-    checkLookup(32'h0040_1000, 1'b0, 32'h0,         "4-way: fifth tag misses");
+    // ---- a walk over many lines, each satisfied by its own fill ----------------
+    checkManyLines();
 
-    // ---- invalidating the way kills the hit ------------------------------------
-    @(negedge clk);
-    tagWrEnable = 4'b0001; tagWrSet = setOf(32'h0000_1000); tagWrTag = '0;
-    tagWrValid  = 1'b0;
-    @(negedge clk); tagWrEnable = 4'h0;
-    checkLookup(32'h0000_1000, 1'b0, 32'h0, "invalidated way0");
-
-    // ---- back-to-back lookups: the pipe holds one word per cycle ---------------
-    checkStreaming();
-
-    // ---- PLRU walks away from whatever was just touched ------------------------
-    checkVictimRotation();
-
-    // ---- random sweep ----------------------------------------------------------
-    randomSweep();
-
-    if (errors == 0) $display("PASS  icache  (latency %0d)", LATENCY);
+    if (errors == 0) $display("PASS  icache");
     else             $fatal(1, "FAIL  icache (%0d errors)", errors);
     $finish;
   end
 
-  // ---- four addresses issued on consecutive cycles, four words back to back ----
-  task automatic checkStreaming();
-    logic [31:0] base;
-    int          idx;
-    base = 32'h0004_0000;
-    for (int k = 0; k < 4; k++) begin
-      fillWord(base + 32'(k * 4), 32'h5150_0000 + 32'(k), 0);
-    end
-    validateLine(base, 0);
-
-    for (int k = 0; k < 4 + LATENCY; k++) begin
+  // ---- before initDone the tag LUTRAM is garbage: hit must stay low ------------
+  task automatic checkSweepBlocksHits();
+    int guard;
+    //  Address 0xFE0 is tag 0 / set 127: the LAST set the sweep clears, and the
+    //  one the poisoned tags will match. Held throughout so whichever cycle is
+    //  the vulnerable one, a lookup is sitting in it.
+    guard = 0;
+    while (fillBusy === 1'b1 && guard < 200) begin
       @(negedge clk);
-      if (k >= LATENCY) begin
-        idx = k - LATENCY;
-        if (hit !== 1'b1 || instrWord !== 32'h5150_0000 + 32'(idx)) begin
-          $error("stream word %0d: hit=%b word=%h (exp %h)",
-                 idx, hit, instrWord, 32'h5150_0000 + 32'(idx));
-          errors++;
-        end
+      lookupAddr  = 32'h0000_0FE0;
+      lookupValid = 1'b1;
+      if (hit !== 1'b0) begin
+        $error("hit asserted during the boot sweep"); errors++;
       end
-      if (k < 4) lookupAddr = base + 32'(k * 4);
+      guard++;
+    end
+    if (guard >= 200) begin
+      $error("boot sweep never finished"); errors++;
+    end
+
+    for (int k = 0; k < 10; k++) begin
+      @(negedge clk);
+      lookupAddr  = 32'h0000_0FE0;
+      lookupValid = 1'b1;
+      if (hit !== 1'b0) begin
+        $error("false hit on power-up garbage, %0d cycles after initDone", k);
+        errors++;
+      end
+    end
+    lookupValid = 1'b0;
+    repeat (4) @(negedge clk);
+    wait (fillBusy === 1'b0);
+    repeat (8) @(negedge clk);
+    fillCount = 0;
+  endtask
+
+  // ---- all eight words of a resident line read back correctly ------------------
+  task automatic checkWholeLine(input logic [31:0] base);
+    logic        h;
+    logic [31:0] w;
+    for (int k = 0; k < 8; k++) begin
+      fetch(base + 32'(k * 4), h, w);
+      if (!h) begin
+        $error("resident line: word %0d missed", k); errors++;
+      end else if (w !== base + 32'(k * 4)) begin
+        $error("resident line: word %0d = %h (expected %h)",
+               k, w, base + 32'(k * 4)); errors++;
+      end
     end
   endtask
 
-  // ---- after touching a way, the victim must point somewhere else --------------
-  task automatic checkVictimRotation();
-    logic [31:0] base;
+  // ---- four distinct tags in one set must occupy four distinct ways ------------
+  task automatic checkWaySpread();
     logic [31:0] a;
-    base = 32'h0080_0000;
-    for (int way = 0; way < 4; way++) begin
-      a = base | (32'(way) << 12);
-      fillWord(a, 32'hC0DE_0000 + 32'(way), way);
-      validateLine(a, way);
-      checkLookup(a, 1'b1, 32'hC0DE_0000 + 32'(way), $sformatf("plru touch way%0d", way));
-      checkLookup(a, 1'b1, 32'hC0DE_0000 + 32'(way), $sformatf("plru reread way%0d", way));
-      if (victimWay === 2'(way)) begin
-        $error("plru: victim still points at the way just touched (%0d)", way);
+    for (int t = 0; t < 4; t++) begin
+      a = 32'h0020_0400 | (32'(t) << 12);   // set 0x20, clear of the other tests
+      fetchThroughMiss(a, $sformatf("spread tag%0d", t));
+    end
+    // all four must still be resident: nothing evicted anything
+    for (int t = 0; t < 4; t++) begin
+      logic        h;
+      logic [31:0] w;
+      a = 32'h0020_0400 | (32'(t) << 12);   // set 0x20, clear of the other tests
+      fetch(a, h, w);
+      if (!h) begin
+        $error("spread: tag%0d evicted, PLRU did not use all four ways", t);
         errors++;
       end
     end
   endtask
 
-  // ---- random fills, read straight back ----------------------------------------
-  task automatic randomSweep();
+  // ---- consecutive addresses, one word per cycle, offset by the 3-cycle pipe ---
+  task automatic checkStreaming(input logic [31:0] base);
+    int idx;
+    for (int k = 0; k < 8 + 3; k++) begin
+      @(negedge clk);
+      if (k >= 3) begin
+        idx = k - 3;
+        if (hit !== 1'b1 || instrWord !== base + 32'(idx * 4)) begin
+          $error("stream word %0d: hit=%b word=%h (expected %h)",
+                 idx, hit, instrWord, base + 32'(idx * 4)); errors++;
+        end
+      end
+      if (k < 8) begin
+        lookupAddr  = base + 32'(k * 4);
+        lookupValid = 1'b1;
+      end else begin
+        lookupValid = 1'b0;
+      end
+    end
+  endtask
+
+  // ---- a walk across many lines and sets ---------------------------------------
+  task automatic checkManyLines();
     logic [31:0] a;
-    logic [31:0] w;
-    int          way;
-    for (int k = 0; k < 200; k++) begin
-      way = $urandom_range(0, 3);
-      a   = {7'b0, 13'(k), 7'h55, 3'($urandom()), 2'b00};
-      w   = $urandom();
-      fillWord(a, w, way);
-      validateLine(a, way);
-      checkLookup(a, 1'b1, w, $sformatf("rand a=%h way%0d", a, way));
+    int          fillsBefore;
+    fillsBefore = fillCount;
+    for (int n = 0; n < 24; n++) begin
+      a = 32'h0100_0000 | (32'(n) << 5);       // 24 consecutive lines
+      fetchThroughMiss(a, $sformatf("walk line%0d", n));
+    end
+    if (fillCount - fillsBefore != 24) begin
+      $error("walk: %0d fills for 24 fresh lines", fillCount - fillsBefore);
+      errors++;
     end
   endtask
 
