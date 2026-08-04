@@ -43,7 +43,7 @@ module fetch_queue_ring (
     .pop_pcB      (popPcB),
     .pop_hwValidB (popHwB),
     .pop_wordB    (popWordB),
-    .pop_taken    (ctl[4])
+    .pop_take     (ctl[1:0])
   );
 
   xor_sink #(.W(131)) u_sink (

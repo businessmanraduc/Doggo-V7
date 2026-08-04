@@ -13,6 +13,10 @@
 //  A dead word is dropped at the push port rather than stored, so align only
 //  ever sees entries with at least one live halfword.
 //
+//  Up to two entries retire per cycle: a straddling instruction consumes the
+//  low half of the second entry, and when that was its only live half, both
+//  entries are finished together.
+//
 //  Two entries are visible at once (head and head+1) because of the possibility
 //  that a 32-bit instruction might straddle a word boundary. The second read
 //  port is a replicated LUTRAM copy, without a second write port needed.
@@ -51,7 +55,7 @@ module fetch_queue #(
   output logic [31:2] pop_pcB,
   output logic [1:0]  pop_hwValidB,
   output logic [31:0] pop_wordB,
-  input  logic        pop_taken
+  input  logic [1:0]  pop_take
 );
 
   localparam int PC_W    = 30;
@@ -59,7 +63,8 @@ module fetch_queue #(
 
   logic [IDX_W-1:0] head, tail, aheadIdx;
   logic [IDX_W:0]   count;
-  logic             doPush, doPop, dropPush;
+  logic             doPush, dropPush;
+  logic [1:0]       popCount;
 
   // ---- flush shadow: swallow lookups that were already in-flight ---------------
   logic [FETCH_LATENCY-1:0] flushShadow;
@@ -72,9 +77,12 @@ module fetch_queue #(
 
   // ---- handshakes --------------------------------------------------------------
   assign doPush     = push_valid && !dropPush && !count[IDX_W] && (push_hwValid != 2'b00);
-  assign doPop      = pop_validA && pop_taken;
   assign pop_validA = (count != '0);
   assign pop_validB = |count[IDX_W:1];
+  assign popCount   =
+    (pop_take[1] && pop_validB) ? 2'd2 :
+    (|pop_take   && pop_validA) ? 2'd1 :
+  2'd0;
   assign canFetch   = (count <= (IDX_W+1)'(DEPTH - FETCH_LATENCY - 1));
 
   // ---- payload: one copy per read port -----------------------------------------
@@ -99,9 +107,9 @@ module fetch_queue #(
       tail  <= '0;
       count <= '0;
     end else begin
-      head  <= head  + IDX_W'(doPop);
+      head  <= head  + IDX_W'(popCount);
       tail  <= tail  + IDX_W'(doPush);
-      count <= count + (IDX_W+1)'(doPush) - (IDX_W+1)'(doPop);
+      count <= count + (IDX_W+1)'(doPush) - (IDX_W+1)'(popCount);
     end
   end
 
