@@ -4,29 +4,29 @@ ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 
 | floor | mean | ceil |
 |---|---|---|
-| 138.43 | 143.02 | 145.56 |
+| 135.39 | 141.74 | 144.78 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 144.82 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 2 | 145.56 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 3 | 143.33 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 4 | 143.06 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 5 | 141.56 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 6 | 141.14 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 7 | 144.70 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 8 | 144.70 | u_dut.u_btb.g_block  -> u_dut.btbIsConditional |
-| 9 | 142.01 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 10 | 143.06 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 11 | 143.33 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 12 | 142.84 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 13 | 138.43 | u_dut.u_pht.u_alternate.u_ebr.DOB1 -> u_dut.u_pht.alternateCounter |
-| 14 | 142.01 | u_dut.u_btb.g_block  -> u_dut.btbIsBranch |
+| 1 | 144.70 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 2 | 142.69 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 3 | 143.88 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 4 | 138.27 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 5 | 141.82 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 6 | 135.39 | u_dut.u_btb.g_fabricReg.entryQ -> u_dut.nextPC |
+| 7 | 144.78 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 8 | 138.26 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 9 | 143.72 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 10 | 144.70 | u_dut.u_btb.g_block  -> u_dut.btbExitLow |
+| 11 | 141.04 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 12 | 143.53 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 13 | 142.86 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 14 | 141.24 | u_dut.u_btb.g_block  -> u_dut.btbIsBranch |
 | 15 | 144.70 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
 | 16 | 141.00 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 17 | 141.82 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 18 | 143.43 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 19 | 143.37 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
-| 20 | 145.50 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 17 | 137.80 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 18 | 142.43 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 19 | 141.90 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |
+| 20 | 140.10 | u_dut.u_btb.g_block  -> u_dut.u_btb.g_fabricReg.entryQ |

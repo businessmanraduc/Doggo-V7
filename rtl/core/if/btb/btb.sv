@@ -20,6 +20,7 @@ module btb #(
 ) (
   input  logic               clk,
   input  logic [31:0]        lookupPC,
+  input  logic               readEnable,
 
   // ---- update: one resolved branch ---------------------------------------------
   input  logic               wrEnable,
@@ -54,7 +55,7 @@ module btb #(
     for (blk = 0; blk < 3; blk++) begin : g_block
       ebr18 #(.OUT_REG(OUT_REG), .ADDR_W(INDEX_W)) u_block (
         .clk, .wrEnable,   .wrAddr(wrIndex), .wrData(wrEntry[blk*18 +: 18]),
-        .rdAddr(readAddr), .rdData(rawEntry[blk*18 +: 18])
+        .rdAddr(readAddr), .readEnable, .rdData(rawEntry[blk*18 +: 18])
       );
     end
   endgenerate
@@ -64,13 +65,13 @@ module btb #(
   logic [TAG_W-1:0] lookupTagQ1;
   logic [TAG_W-1:0] lookupTagQ2;
   logic [TAG_W-1:0] compareTag;
-  always_ff @(posedge clk) lookupTagQ1 <= lookupTag;
-  always_ff @(posedge clk) lookupTagQ2 <= lookupTagQ1;
+  always_ff @(posedge clk) if (readEnable) lookupTagQ1 <= lookupTag;
+  always_ff @(posedge clk) if (readEnable) lookupTagQ2 <= lookupTagQ1;
   generate
     if (!OUT_REG) begin : g_fabricReg
       logic [53:0] entryQ;
       always_ff @(posedge clk) begin
-        entryQ <= rawEntry;
+        if (readEnable) entryQ <= rawEntry;
       end
       assign entry = entryQ;
     end else begin : g_packedReg

@@ -11,8 +11,9 @@ module bpredict_tb;
   logic clk = 0;
   always #5 clk = ~clk;
 
-  logic                   boot, redirectValid;
+  logic                   boot, redirectValid, stall;
   logic [31:0]            redirectPC;
+  logic [12:0]            redirectBHR;
   logic                   btbWrEnable;
   logic [BTB_INDEX_W-1:0] btbWrIndex;
   logic [53:0]            btbWrEntry;
@@ -20,6 +21,7 @@ module bpredict_tb;
   logic [12:0]            phtWrIndex;
   logic [1:0]             phtWrCounter;
   logic [31:0]            nextPC;
+  logic                   fetchValid;
   logic [31:2]            fetchPC;
   logic [1:0]             fetchHwValid;
 
@@ -27,10 +29,10 @@ module bpredict_tb;
 
   bpredict #(.OUT_REG(1'b0), .BTB_INDEX_W(BTB_INDEX_W), .TAG_W(TAG_W),
              .RESET_PC(RESET_PC)) dut (
-    .clk, .boot, .redirectValid, .redirectPC,
+    .clk, .boot, .redirectValid, .redirectPC, .redirectBHR, .stall,
     .btbWrEnable, .btbWrIndex, .btbWrEntry,
     .phtWrEnable, .phtWrIndex, .phtWrCounter,
-    .nextPC, .fetchPC, .fetchHwValid
+    .nextPC, .fetchValid, .fetchPC, .fetchHwValid
   );
 
   initial begin
@@ -46,7 +48,7 @@ module bpredict_tb;
   task automatic step(input int cycles);
     for (int k = 0; k < cycles; k++) begin
       @(negedge clk);
-      if (recCount < 128) begin
+      if (fetchValid && recCount < 128) begin
         recPC[recCount]   = fetchPC;
         recMask[recCount] = fetchHwValid;
         recCount++;
@@ -85,6 +87,27 @@ module bpredict_tb;
     btbWrEnable = 1'b0;
   endtask
 
+  task automatic installBranchC(
+    input logic [31:0] word, input logic [31:0] tgt, input logic cond);
+    @(negedge clk);
+    btbWrEnable = 1'b1;
+    btbWrIndex  = word[BTB_INDEX_W+1 : 2];
+    btbWrEntry  = packEntry(cond, 1'b0, 1'b0, word, tgt);
+    @(negedge clk);
+    btbWrEnable = 1'b0;
+  endtask
+
+  //  index as bpredict folds it: the probe address xor the history in use
+  task automatic trainPht(input logic [31:0] word, input logic [12:0] bhr,
+                          input logic [1:0] counter);
+    @(negedge clk);
+    phtWrEnable  = 1'b1;
+    phtWrIndex   = word[14:2] ^ bhr;
+    phtWrCounter = counter;
+    @(negedge clk);
+    phtWrEnable  = 1'b0;
+  endtask
+
   // ---- jump the frontend somewhere and record what it issues -------------------
   task automatic runFrom(input logic [31:0] start, input int cycles);
     @(negedge clk);
@@ -111,6 +134,7 @@ module bpredict_tb;
 
   initial begin
     boot = 1'b0; redirectValid = 1'b0; redirectPC = '0;
+    redirectBHR = '0; stall = 1'b0;
     btbWrEnable = 1'b0; btbWrIndex = '0; btbWrEntry = '0;
     phtWrEnable = 1'b0; phtWrIndex = '0; phtWrCounter = '0;
     recCount = 0;
@@ -126,6 +150,11 @@ module bpredict_tb;
     checkStraddlingBranch();
     checkOddHalfwordTarget();
     checkShadowAfterRedirect();
+    checkStallParksFetch();
+    checkStallKeepsPrediction();
+    checkBhrRestore();
+    checkBhrConditionalOnly();
+    checkBhrAcrossPark();
 
     if (errors == 0) $display("PASS  bpredict");
     else             $fatal(1, "FAIL  bpredict (%0d errors)", errors);
@@ -199,6 +228,143 @@ module bpredict_tb;
     if (findPC(32'h0000_1600) < 0) begin
       $error("shadow: frontend never reached the redirect target");
       errors++;
+    end
+  endtask
+
+  // ---- parking freezes the fetch stream and issues no words -------------------
+  task automatic checkStallParksFetch();
+    logic [31:0] frozen;
+    runFrom(32'h0000_1700, 4);
+    frozen = nextPC;
+    stall  = 1'b1;
+    repeat (5) begin
+      @(negedge clk);
+      if (nextPC !== frozen) begin
+        $error("park: nextPC advanced to %h while parked", nextPC); errors++;
+      end
+      if (fetchValid !== 1'b0) begin
+        $error("park: fetchValid high while parked"); errors++;
+      end
+    end
+    stall = 1'b0;
+    @(negedge clk);
+    if (fetchValid !== 1'b1) begin
+      $error("park: fetchValid did not resume"); errors++;
+    end
+    @(negedge clk);
+    if (nextPC === frozen) begin
+      $error("park: nextPC did not resume"); errors++;
+    end
+  endtask
+
+  // ---- a park may delay the fetch stream but must never alter it -------------
+  task automatic checkStallKeepsPrediction();
+    logic [31:2] refPC [0:63];
+    int          refCount;
+
+    redirectBHR = '0;
+    installBranchC(32'h0000_7010, 32'h0000_3700, 1'b1);
+    trainPht(32'h0000_7010, 13'h0, 2'd3);
+
+    runFrom(32'h0000_7000, 24);
+    refCount = recCount;
+    for (int k = 0; k < recCount; k++) refPC[k] = recPC[k];
+    if (findPC(32'h0000_3700) < 0) begin
+      $error("park: reference run never reached the target"); errors++;
+    end
+
+    for (int lead = 1; lead <= 6; lead++) begin
+      @(negedge clk); redirectValid = 1'b1; redirectPC = 32'h0000_7000;
+      @(negedge clk); redirectValid = 1'b0;
+      recCount = 0;
+      step(lead);
+      stall = 1'b1;
+      repeat (5) @(negedge clk);
+      stall = 1'b0;
+      step(24);
+
+      if (recCount < refCount) begin
+        $error("park(lead %0d): issued %0d words, reference issued %0d",
+               lead, recCount, refCount); errors++;
+      end else begin
+        for (int k = 0; k < refCount; k++) begin
+          if (recPC[k] !== refPC[k]) begin
+            $error("park(lead %0d): word %0d is %h, reference issued %h",
+                   lead, k, {recPC[k], 2'b00}, {refPC[k], 2'b00}); errors++;
+          end
+        end
+      end
+    end
+  endtask
+
+  // ---- a park must not disturb the branch history either ---------------------
+  task automatic checkBhrAcrossPark();
+    logic [12:0] refBhr;
+    logic [12:0] base;
+    base        = 13'h1555;
+    redirectBHR = base;
+    installBranchC(32'h0000_8010, 32'h0000_3800, 1'b1);
+
+    runFrom(32'h0000_8000, 16);
+    refBhr = dut.branchHistory;
+    if (refBhr === base) begin
+      $error("bhr/park: reference run never shifted the history"); errors++;
+    end
+
+    for (int lead = 1; lead <= 6; lead++) begin
+      @(negedge clk); redirectValid = 1'b1; redirectPC = 32'h0000_8000;
+      @(negedge clk); redirectValid = 1'b0;
+      step(lead);
+      stall = 1'b1;
+      repeat (5) @(negedge clk);
+      stall = 1'b0;
+      step(16);
+      if (dut.branchHistory !== refBhr) begin
+        $error("bhr/park(lead %0d): history %h, undisturbed run gave %h",
+               lead, dut.branchHistory, refBhr); errors++;
+      end
+    end
+  endtask
+
+  // ---- a redirect reloads the history the backend recovered -------------------
+  task automatic checkBhrRestore();
+    redirectBHR = 13'h1555;
+    @(negedge clk); redirectValid = 1'b1; redirectPC = 32'h0000_1800;
+    @(negedge clk); redirectValid = 1'b0;
+    if (dut.branchHistory !== 13'h1555) begin
+      $error("bhr: restore loaded %h (expected 1555)", dut.branchHistory); errors++;
+    end
+  endtask
+
+  // ---- the history moves on conditional branches and nothing else -------------
+  task automatic checkBhrConditionalOnly();
+    logic [12:0] base;
+    base        = 13'h1555;
+    redirectBHR = base;
+
+    // plain sequential code must not disturb it
+    @(negedge clk); redirectValid = 1'b1; redirectPC = 32'h0000_5100;
+    @(negedge clk); redirectValid = 1'b0;
+    repeat (10) @(negedge clk);
+    if (dut.branchHistory !== base) begin
+      $error("bhr: shifted %h with no branches in the stream", dut.branchHistory);
+      errors++;
+    end
+
+    // an unconditional branch consults no counter, so it contributes nothing
+    installBranchC(32'h0000_5010, 32'h0000_3500, 1'b0);
+    runFrom(32'h0000_5000, 12);
+    if (dut.branchHistory !== base) begin
+      $error("bhr: shifted %h on an unconditional branch", dut.branchHistory);
+      errors++;
+    end
+
+    // a conditional branch shifts in the direction the PHT gave
+    installBranchC(32'h0000_6010, 32'h0000_3600, 1'b1);
+    runFrom(32'h0000_6000, 12);
+    if (dut.branchHistory !== {base[11:0], 1'b0}) begin
+      $error("bhr: conditional gave %h (expected %h)",
+             dut.branchHistory, {base[11:0], 1'b0}); errors++;
     end
   endtask
 

@@ -17,7 +17,7 @@ module pht_tb;
   int                 errors = 0;
 
   pht #(.OUT_REG(1'b0), .INDEX_W(INDEX_W)) dut (
-    .clk, .gshareIndex, .resolveBit,
+    .clk, .gshareIndex, .readEnable(1'b1), .resolveBit,
     .wrEnable, .wrIndex, .wrCounter, .takenPrediction(taken)
   );
 

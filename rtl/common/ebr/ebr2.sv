@@ -4,6 +4,9 @@
 //  Raw DP16KD in x2 mode: one 2-bit word per address, 2^ADDR_W deep.
 //  Word address sits in AD[13:1], AD0 tied 0.
 //
+//  readEnable freezes the read pipeline, address register and output register
+//  together, on the block's own CEB/OCEB pins.
+//
 //  OUT_REG picks read latency:
 //    0 - one cycle
 //    1 - two cycles (packs the block's output register)
@@ -17,6 +20,7 @@ module ebr2 #(
   input  logic [ADDR_W-1:0] wrAddr,
   input  logic [1:0]        wrData,
   input  logic [ADDR_W-1:0] rdAddr,
+  input  logic              readEnable,
   output logic [1:0]        rdData
 );
 
@@ -24,12 +28,12 @@ module ebr2 #(
   (* ram_style = "block_ram" *) logic [1:0] mem [0:(1<<ADDR_W)-1];
   logic [1:0] readInner;
   always_ff @(posedge clk) begin
-    if (wrEnable) mem[wrAddr] <= wrData;
-    readInner <= mem[rdAddr];
+    if (wrEnable)   mem[wrAddr] <= wrData;
+    if (readEnable) readInner   <= mem[rdAddr];
   end
   generate
     if (OUT_REG) begin : g_outReg
-      always_ff @(posedge clk) rdData <= readInner;
+      always_ff @(posedge clk) if (readEnable) rdData <= readInner;
     end else begin : g_noReg
       assign rdData = readInner;
     end
@@ -58,7 +62,7 @@ module ebr2 #(
     .DOA0(), .DOA1(), .DOA2(), .DOA3(), .DOA4(), .DOA5(), .DOA6(), .DOA7(),
     .DOA8(), .DOA9(), .DOA10(),.DOA11(),.DOA12(),.DOA13(),.DOA14(),.DOA15(),
     .DOA16(),.DOA17(),
-    .CLKB(clk), .CEB(1'b1), .OCEB(1'b1), .WEB(1'b0), .RSTB(1'b0),
+    .CLKB(clk), .CEB(readEnable), .OCEB(readEnable), .WEB(1'b0), .RSTB(1'b0),
     .CSB0(1'b0), .CSB1(1'b0), .CSB2(1'b0),
     .ADB0(1'b0),
     .ADB1(rdWord[0]),  .ADB2(rdWord[1]),  .ADB3(rdWord[2]),  .ADB4(rdWord[3]),

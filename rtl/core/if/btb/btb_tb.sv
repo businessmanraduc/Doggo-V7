@@ -19,7 +19,7 @@ module btb_tb;
   int                 errors = 0;
 
   btb #(.OUT_REG(1'b0), .INDEX_W(INDEX_W), .TAG_W(TAG_W)) dut (
-    .clk, .lookupPC, .wrEnable, .wrIndex, .wrEntry,
+    .clk, .lookupPC, .readEnable(1'b1), .wrEnable, .wrIndex, .wrEntry,
     .hit, .isBranch, .isConditional, .isStraddle, .exitAfterLow, .target
   );
 

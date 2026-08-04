@@ -11,16 +11,19 @@ module bpredict_ring (input logic clk, input logic perturb, output logic q);
   lfsr_src #(.W(32)) u2 (.clk, .perturb(s1[0]),   .q(s2));
   lfsr_src #(.W(32)) u3 (.clk, .perturb(s2[0]),   .q(s3));
   logic [31:0] nextPC;
+  logic        fetchValid;
   logic [31:2] fetchPC;
   logic [1:0]  fetchHwValid;
   bpredict #(.OUT_REG(1'b0), .BTB_INDEX_W(BTB_W), .PHT_INDEX_W(PHT_W)) u_dut (
     .clk, .boot(s0[7]), .redirectValid(s0[3]), .redirectPC(s1),
+    .redirectBHR(s2[PHT_W:1]), .stall(s0[5]),
     .btbWrEnable(s2[0]), .btbWrIndex(s2[BTB_W:1]), .btbWrEntry({s3[21:0], s1}),
     .phtWrEnable(s2[1]), .phtWrIndex(s3[PHT_W:1]), .phtWrCounter(s3[13:12]),
-    .nextPC(nextPC),     .fetchPC(fetchPC),        .fetchHwValid(fetchHwValid)
+    .nextPC(nextPC),     .fetchValid(fetchValid),  .fetchPC(fetchPC),
+    .fetchHwValid(fetchHwValid)
   );
-  xor_sink #(.W(64)) u_sink (
-    .clk, .d({nextPC, fetchPC, fetchHwValid}), .q(q)
+  xor_sink #(.W(65)) u_sink (
+    .clk, .d({nextPC, fetchPC, fetchValid, fetchHwValid}), .q(q)
   );
 endmodule
 

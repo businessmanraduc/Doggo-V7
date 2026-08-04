@@ -5,6 +5,9 @@
 //  Word address sits in AD[13:4]; sub-word bits AD[3:0] are read-tied-0.
 //  On write, ADA0/ADA1 are byte-enables held high for full 18-bit write.
 //
+//  readEnable freezes the read pipeline, address register and output register
+//  together, on the block's own CEB/OCEB pins.
+//
 //  OUT_REG picks read latency:
 //    0 - one cycle
 //    1 - two cycles (packs the block's output register)
@@ -18,6 +21,7 @@ module ebr18 #(
   input  logic [ADDR_W-1:0] wrAddr,
   input  logic [17:0]       wrData,
   input  logic [ADDR_W-1:0] rdAddr,
+  input  logic              readEnable,
   output logic [17:0]       rdData
 );
 
@@ -26,12 +30,12 @@ module ebr18 #(
   (* ram_style = "block_ram" *) logic [17:0] mem [0:(1<<ADDR_W)-1];
   logic [17:0] readInner;
   always_ff @(posedge clk) begin
-    if (wrEnable) mem[wrAddr] <= wrData;
-    readInner <= mem[rdAddr];
+    if (wrEnable)   mem[wrAddr] <= wrData;
+    if (readEnable) readInner   <= mem[rdAddr];
   end
   generate
     if (OUT_REG) begin : g_outReg
-      always_ff @(posedge clk) rdData <= readInner;
+      always_ff @(posedge clk) if (readEnable) rdData <= readInner;
     end else begin : g_noReg
       assign rdData = readInner;
     end
@@ -63,7 +67,7 @@ module ebr18 #(
     .DOA8(), .DOA9(), .DOA10(),.DOA11(),.DOA12(),.DOA13(),.DOA14(),.DOA15(),
     .DOA16(),.DOA17(),
     // ---- port B: read (sub-word AD[3:0] = 0) -----------------------------------
-    .CLKB(clk), .CEB(1'b1), .OCEB(1'b1), .WEB(1'b0), .RSTB(1'b0),
+    .CLKB(clk), .CEB(readEnable), .OCEB(readEnable), .WEB(1'b0), .RSTB(1'b0),
     .CSB0(1'b0), .CSB1(1'b0), .CSB2(1'b0),
     .ADB0(1'b0), .ADB1(1'b0), .ADB2(1'b0), .ADB3(1'b0),
     .ADB4(rdWord[0]), .ADB5(rdWord[1]), .ADB6(rdWord[2]), .ADB7(rdWord[3]),

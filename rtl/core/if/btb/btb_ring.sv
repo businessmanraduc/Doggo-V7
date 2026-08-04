@@ -11,7 +11,7 @@ module btb_ring (input logic clk, input logic perturb, output logic q);
   logic        hit, isBranch, isConditional, isStraddle, exitAfterLow;
   logic [31:0] target;
   btb #(.OUT_REG(1'b0), .INDEX_W(INDEX_W)) u_dut (
-    .clk, .lookupPC(s1),
+    .clk, .lookupPC(s1), .readEnable(s2[7]),
     .wrEnable(s2[0]), .wrIndex(s2[INDEX_W:1]), .wrEntry({s3[21:0], s0}),
     .hit, .isBranch, .isConditional, .isStraddle, .exitAfterLow, .target
   );

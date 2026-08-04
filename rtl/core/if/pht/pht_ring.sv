@@ -10,7 +10,7 @@ module pht_ring (input logic clk, input logic perturb, output logic q);
   lfsr_src #(.W(32)) u3 (.clk, .perturb(s2[0]),   .q(s3));
   logic taken;
   pht #(.OUT_REG(1'b0), .INDEX_W(INDEX_W)) u_dut (
-    .clk, .gshareIndex(s0[INDEX_W-1:0]), .resolveBit(s1[0]),
+    .clk, .gshareIndex(s0[INDEX_W-1:0]), .readEnable(s2[7]), .resolveBit(s1[0]),
     .wrEnable(s2[0]), .wrIndex(s2[INDEX_W:1]), .wrCounter(s3[1:0]),
     .takenPrediction(taken)
   );

@@ -19,6 +19,7 @@ module pht #(
 
   // ---- lookup: gshare index + late resolve bit ---------------------------------
   input  logic [INDEX_W-1:0] gshareIndex,
+  input  logic               readEnable,
   input  logic               resolveBit,
 
   // ---- update: one resolved branch ---------------------------------------------
@@ -36,25 +37,29 @@ module pht #(
   logic [1:0] primaryCounterRaw, alternateCounterRaw;
   ebr2 #(.OUT_REG(OUT_REG), .ADDR_W(INDEX_W)) u_primary (
     .clk, .wrEnable, .wrAddr(wrIndex), .wrData(wrCounter),
-    .rdAddr(gshareIndex),   .rdData(primaryCounterRaw)
+    .rdAddr(gshareIndex), .readEnable, .rdData(primaryCounterRaw)
   );
   ebr2 #(.OUT_REG(OUT_REG), .ADDR_W(INDEX_W)) u_alternate (
     .clk, .wrEnable, .wrAddr(wrIndex), .wrData(wrCounter),
-    .rdAddr(alternateIndex), .rdData(alternateCounterRaw)
+    .rdAddr(alternateIndex), .readEnable, .rdData(alternateCounterRaw)
   );
 
   // ---- counters + resolve bit --------------------------------------------------
   logic [1:0] primaryCounter, alternateCounter;
   logic       resolveQ1,      resolveQ2;
   always_ff @(posedge clk) begin
-    resolveQ1 <= resolveBit;
-    resolveQ2 <= resolveQ1;
+    if (readEnable) begin
+      resolveQ1 <= resolveBit;
+      resolveQ2 <= resolveQ1;
+    end
   end
   generate
     if (!OUT_REG) begin : g_alignReg
       always_ff @(posedge clk) begin
-        primaryCounter   <= primaryCounterRaw;
-        alternateCounter <= alternateCounterRaw;
+        if (readEnable) begin
+          primaryCounter   <= primaryCounterRaw;
+          alternateCounter <= alternateCounterRaw;
+        end
       end
     end else begin : g_alignDirect
       assign primaryCounter   = primaryCounterRaw;

@@ -20,6 +20,15 @@
 //  After any redirect the two verdicts still in flight describe wrong-path
 //  words, so predictions are surpressed for two cycles.
 //
+//  ---- parking ------------------------------------------------------------------
+//  Stall parks F0 on an I-Cache fill or on fetch-queue credit. Everything in
+//  the predictor freezes together: nextPC, the shadow, the history, and the
+//  BTB+PHT read pipelines.
+//
+//  ---- branch history -----------------------------------------------------------
+//  The BHR shifts one per conditional branch. On a redirect it is reloaded
+//  from redirectBHR, which the backend recovers as gshareIndex ^ lookupPC[14:2].
+//
 //  OUT_REG is a single-tier knob:
 //    0 - tier-2 output register implementation, portable
 //    1 - tier-3 optimized embedded usage of ECP5 BSRAM output register
@@ -37,6 +46,8 @@ module bpredict #(
   input  logic                   boot,
   input  logic                   redirectValid,
   input  logic [31:0]            redirectPC,
+  input  logic [PHT_INDEX_W-1:0] redirectBHR,
+  input  logic                   stall,
 
   // ---- BTB update --------------------------------------------------------------
   input  logic                   btbWrEnable,
@@ -50,6 +61,7 @@ module bpredict #(
 
   // ---- fetch address + metadata for word issued one cycle ago ------------------
   output logic [31:0]            nextPC,
+  output logic                   fetchValid,
   output logic [31:2]            fetchPC,
   output logic [1:0]             fetchHwValid
 );
@@ -68,7 +80,7 @@ module bpredict #(
   logic        btbHit, btbIsBranch, btbIsConditional, btbIsStraddle, btbExitLow;
   logic [31:0] btbTarget;
   btb #(.OUT_REG(OUT_REG), .INDEX_W(BTB_INDEX_W), .TAG_W(TAG_W)) u_btb (
-   .clk, .lookupPC,
+   .clk, .lookupPC, .readEnable(!stall),
     .wrEnable(btbWrEnable), .wrIndex(btbWrIndex), .wrEntry(btbWrEntry),
     .hit(btbHit), .isBranch(btbIsBranch), .isConditional(btbIsConditional),
     .isStraddle(btbIsStraddle), .exitAfterLow(btbExitLow), .target(btbTarget)
@@ -77,12 +89,14 @@ module bpredict #(
   // ---- PHT: direction ----------------------------------------------------------
   logic phtTaken;
   pht #(.OUT_REG(OUT_REG), .INDEX_W(PHT_INDEX_W)) u_pht (
-    .clk, .gshareIndex, .resolveBit(branchHistory[0]),
+    .clk, .gshareIndex, .readEnable(!stall), .resolveBit(branchHistory[0]),
     .wrEnable(phtWrEnable), .wrIndex(phtWrIndex), .wrCounter(phtWrCounter),
     .takenPrediction(phtTaken)
   );
 
   // ---- prediction shadow: two verdicts behind a redirect -----------------------
+  logic advance; assign advance = boot || redirectValid || !stall;
+
   logic shadowF1, shadowF2;
   logic verdictValid; assign verdictValid = !(shadowF1 || shadowF2);
 
@@ -96,13 +110,17 @@ module bpredict #(
   logic        straddlePending;
   logic [31:0] straddleTarget;
   always_ff @(posedge clk) begin
-    straddlePending <= predictedTaken && btbIsStraddle && !redirectValid && !boot;
-    straddleTarget  <= btbTarget;
+    if (advance) begin
+      straddlePending <= predictedTaken && btbIsStraddle && !redirectValid && !boot;
+      straddleTarget  <= btbTarget;
+    end
   end
 
   always_ff @(posedge clk) begin
-    shadowF1 <= boot || redirectValid || takenNow || straddlePending;
-    shadowF2 <= shadowF1;
+    if (advance) begin
+      shadowF1 <= boot || redirectValid || takenNow || straddlePending;
+      shadowF2 <= shadowF1;
+    end
   end
 
   // ---- F0 NextPC mux -----------------------------------------------------------
@@ -113,17 +131,25 @@ module bpredict #(
     (predictedTaken && !btbIsStraddle) ? btbTarget      :
   lookupPC;
 
+  logic bhrShift; assign bhrShift = verdictValid && btbHit && btbIsBranch && btbIsConditional;
+
   always_ff @(posedge clk) begin
-    nextPC <= combNextPC;
-    if (!redirectValid) branchHistory <= {branchHistory[PHT_INDEX_W-2:0], predictedTaken};
+    if (advance) nextPC <= combNextPC;
+
+    if (boot)                    branchHistory <= '0;
+    else if (redirectValid)      branchHistory <= redirectBHR;
+    else if (bhrShift && !stall) branchHistory <= {branchHistory[PHT_INDEX_W-2:0], phtTaken};
   end
 
   // ---- metadata for the word issued one cycle ago ------------------------------
   logic prevStartHigh, redirectedF1;
   always_ff @(posedge clk) begin
-    fetchPC       <= nextPC[31:2];
-    prevStartHigh <= nextPC[1];
-    redirectedF1  <= takenNow || straddlePending;
+    fetchValid <= !stall;
+    if (!stall) begin
+      fetchPC       <= nextPC[31:2];
+      prevStartHigh <= nextPC[1];
+      redirectedF1  <= takenNow || straddlePending;
+    end
   end
 
   logic lowLive, highLive;

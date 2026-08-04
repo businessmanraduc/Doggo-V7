@@ -104,7 +104,7 @@ module icache #(
         ebr18 #(.OUT_REG(1'b1), .ADDR_W(WORDIDX_W)) u_block (
           .clk,                     .wrEnable(dataWrEnable[way]),
           .wrAddr(dataWrIndex),     .wrData(wrWide[blk*18 +: 18]),
-          .rdAddr(lookupWordIndex), .rdData(rawWord[blk*18 +: 18])
+          .rdAddr(lookupWordIndex), .readEnable(1'b1), .rdData(rawWord[blk*18 +: 18])
         );
       end
       assign readWord[way] = rawWord[31:0];
