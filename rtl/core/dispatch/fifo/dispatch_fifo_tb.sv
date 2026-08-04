@@ -1,5 +1,5 @@
 // ================================================================================
-//  dispatch_fifo_tb -- elastic, in-order, lossless between the handshakes, 
+//  dispatch_fifo_tb -- elastic, in-order, lossless between the handshakes,
 //  and empty after flush
 // ================================================================================
 
