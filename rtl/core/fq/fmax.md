@@ -4,29 +4,29 @@ ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 
 | floor | mean | ceil |
 |---|---|---|
-| 180.41 | 196.22 | 220.46 |
+| 171.82 | 186.35 | 215.01 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 192.57 | u_dut.count          -> u_dut.count |
-| 2 | 198.65 | u_dut.count          -> u_dut.count |
-| 3 | 191.39 | u_dut.count          -> u_dut.count |
-| 4 | 190.69 | u_dut.count          -> u_dut.count |
-| 5 | 196.70 | u_dut.count          -> u_dut.count |
-| 6 | 182.45 | u_dut.count          -> u_dut.count |
-| 7 | 217.20 | u_dut.count          -> u_dut.count |
-| 8 | 190.44 | u_dut.count          -> u_dut.count |
-| 9 | 188.96 | u_dut.count          -> u_dut.count |
-| 10 | 190.51 | u_dut.count          -> u_dut.count |
-| 11 | 196.39 | u_dut.count          -> u_dut.count |
-| 12 | 198.65 | u_dut.count          -> u_dut.count |
-| 13 | 182.58 | u_dut.count          -> u_dut.count |
-| 14 | 208.25 | u_dut.count          -> u_dut.count |
-| 15 | 180.41 | u_dut.count          -> u_dut.count |
-| 16 | 191.20 | u_dut.count          -> u_dut.count |
-| 17 | 190.69 | u_dut.count          -> u_dut.count |
-| 18 | 197.47 | u_dut.count          -> u_dut.count |
-| 19 | 218.77 | u_dut.count          -> u_dut.count |
-| 20 | 220.46 | u_dut.flushShadow    -> u_dut.count |
+| 1 | 189.32 | u_dut.count          -> u_dut.count |
+| 2 | 189.75 | u_dut.count          -> u_dut.count |
+| 3 | 215.01 | u_srcC.r             -> u_dut.count |
+| 4 | 179.15 | u_dut.count          -> u_dut.count |
+| 5 | 186.81 | u_dut.count          -> u_dut.count |
+| 6 | 173.67 | u_srcC.r             -> u_dut.count |
+| 7 | 186.57 | u_dut.count          -> u_dut.count |
+| 8 | 173.43 | u_dut.count          -> u_dut.count |
+| 9 | 196.08 | u_srcC.r             -> u_dut.count |
+| 10 | 204.29 | u_dut.count          -> u_dut.count |
+| 11 | 173.76 | u_dut.count          -> u_dut.count |
+| 12 | 171.82 | u_dut.count          -> u_dut.count |
+| 13 | 195.47 | u_dut.count          -> u_dut.count |
+| 14 | 181.62 | u_dut.count          -> u_dut.count |
+| 15 | 181.29 | u_dut.count          -> u_dut.count |
+| 16 | 188.22 | u_dut.count          -> u_dut.count |
+| 17 | 171.91 | u_srcC.r             -> u_dut.count |
+| 18 | 191.83 | u_dut.count          -> u_dut.count |
+| 19 | 174.09 | u_dut.flushShadow    -> u_dut.count |
+| 20 | 203.00 | u_dut.flushShadow    -> u_dut.count |

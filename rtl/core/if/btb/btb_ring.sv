@@ -8,12 +8,14 @@ module btb_ring (input logic clk, input logic perturb, output logic q);
   lfsr_src #(.W(32)) u1 (.clk, .perturb(s0[0]),   .q(s1));
   lfsr_src #(.W(32)) u2 (.clk, .perturb(s1[0]),   .q(s2));
   lfsr_src #(.W(32)) u3 (.clk, .perturb(s2[0]),   .q(s3));
-  logic        hit, isBranch, isConditional, isStraddle;
+  logic        hit, isBranch, isConditional, isStraddle, exitAfterLow;
   logic [31:0] target;
   btb #(.OUT_REG(1'b0), .INDEX_W(INDEX_W)) u_dut (
     .clk, .lookupPC(s1),
     .wrEnable(s2[0]), .wrIndex(s2[INDEX_W:1]), .wrEntry({s3[21:0], s0}),
-    .hit, .isBranch, .isConditional, .isStraddle, .target
+    .hit, .isBranch, .isConditional, .isStraddle, .exitAfterLow, .target
   );
-  xor_sink #(.W(36)) u_sink (.clk, .d({target, hit, isBranch, isConditional, isStraddle}), .q(q));
+  xor_sink #(.W(37)) u_sink (
+    .clk, .d({target, hit, isBranch, isConditional, isStraddle, exitAfterLow}), .q(q)
+  );
 endmodule

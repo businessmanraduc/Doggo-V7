@@ -7,11 +7,24 @@
 //  NextPC priority: reset > backend redirect > pending straddle
 //                    > predicted-taken > sequential (PC + 4)
 //
+//  ---- fetch-word metadata ------------------------------------------------------
+//  The BTB read is two cycles and lookupPC only looks one fetch ahead, so
+//  a verdict lands one word after the word it describes. Two consequences:
+//    overrun   a predicted-taken redirect arrives too late to stop the next
+//              sequential fetch, so one wrong-path word is fetched behind
+//              every taken branch and is marked dead.
+//    exit      a 16-bit branch in a word's low half means the high half is
+//              never executed even tho the word is live.
+//
+//  ---- prediction shadow --------------------------------------------------------
+//  After any redirect the two verdicts still in flight describe wrong-path
+//  words, so predictions are surpressed for two cycles.
+//
 //  OUT_REG is a single-tier knob:
 //    0 - tier-2 output register implementation, portable
 //    1 - tier-3 optimized embedded usage of ECP5 BSRAM output register
 //
-//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): 135.41 / 140.27 / 144.97
+//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
 // ================================================================================
 module bpredict #(
   parameter bit          OUT_REG     = 1'b0,
@@ -35,25 +48,30 @@ module bpredict #(
   input  logic [PHT_INDEX_W-1:0] phtWrIndex,
   input  logic [1:0]             phtWrCounter,
 
-  output logic [31:0]            nextPC
+  // ---- fetch address + metadata for word issued one cycle ago ------------------
+  output logic [31:0]            nextPC,
+  output logic [31:2]            fetchPC,
+  output logic [1:0]             fetchHwValid
 );
 
   // ---- F0 -> lookup address + gshare index -------------------------------------
+  logic [31:0]            wordPC;
   logic [31:0]            lookupPC;
   logic [PHT_INDEX_W-1:0] branchHistory;
   logic [PHT_INDEX_W-1:0] gshareIndex;
 
-  assign lookupPC    = nextPC + 32'd4;
-  assign gshareIndex = lookupPC[PHT_INDEX_W:1] ^ branchHistory;
+  assign wordPC      = {nextPC[31:2], 2'b00};
+  assign lookupPC    = wordPC + 32'd4;
+  assign gshareIndex = lookupPC[PHT_INDEX_W+1:2] ^ branchHistory;
 
   // ---- BTB: target + kind ------------------------------------------------------
-  logic        btbHit, btbIsBranch, btbIsConditional, btbIsStraddle;
+  logic        btbHit, btbIsBranch, btbIsConditional, btbIsStraddle, btbExitLow;
   logic [31:0] btbTarget;
   btb #(.OUT_REG(OUT_REG), .INDEX_W(BTB_INDEX_W), .TAG_W(TAG_W)) u_btb (
    .clk, .lookupPC,
     .wrEnable(btbWrEnable), .wrIndex(btbWrIndex), .wrEntry(btbWrEntry),
     .hit(btbHit), .isBranch(btbIsBranch), .isConditional(btbIsConditional),
-    .isStraddle(btbIsStraddle), .target(btbTarget)
+    .isStraddle(btbIsStraddle), .exitAfterLow(btbExitLow), .target(btbTarget)
   );
 
   // ---- PHT: direction ----------------------------------------------------------
@@ -64,9 +82,15 @@ module bpredict #(
     .takenPrediction(phtTaken)
   );
 
+  // ---- prediction shadow: two verdicts behind a redirect -----------------------
+  logic shadowF1, shadowF2;
+  logic verdictValid; assign verdictValid = !(shadowF1 || shadowF2);
+
   // ---- combine branch prediction outcome ---------------------------------------
-  logic predictedTaken;
-  assign predictedTaken = btbHit && btbIsBranch && (btbIsConditional ? phtTaken : 1'b1);
+  logic predictedTaken; assign predictedTaken =
+    verdictValid && btbHit && btbIsBranch && (btbIsConditional ? phtTaken : 1'b1);
+  logic takenNow; assign takenNow =
+    predictedTaken && !btbIsStraddle && !redirectValid && !boot;
 
   // ---- straddle delayed-apply --------------------------------------------------
   logic        straddlePending;
@@ -74,6 +98,11 @@ module bpredict #(
   always_ff @(posedge clk) begin
     straddlePending <= predictedTaken && btbIsStraddle && !redirectValid && !boot;
     straddleTarget  <= btbTarget;
+  end
+
+  always_ff @(posedge clk) begin
+    shadowF1 <= boot || redirectValid || takenNow || straddlePending;
+    shadowF2 <= shadowF1;
   end
 
   // ---- F0 NextPC mux -----------------------------------------------------------
@@ -88,6 +117,20 @@ module bpredict #(
     nextPC <= combNextPC;
     if (!redirectValid) branchHistory <= {branchHistory[PHT_INDEX_W-2:0], predictedTaken};
   end
+
+  // ---- metadata for the word issued one cycle ago ------------------------------
+  logic prevStartHigh, redirectedF1;
+  always_ff @(posedge clk) begin
+    fetchPC       <= nextPC[31:2];
+    prevStartHigh <= nextPC[1];
+    redirectedF1  <= takenNow || straddlePending;
+  end
+
+  logic lowLive, highLive;
+  assign lowLive  = ~prevStartHigh;
+  assign highLive = ~(takenNow && btbExitLow) && ~straddlePending;
+
+  assign fetchHwValid = redirectedF1 ? 2'b00 : {highLive, lowLive};
 
 endmodule
 

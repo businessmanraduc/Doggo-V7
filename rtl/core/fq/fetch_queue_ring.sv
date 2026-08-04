@@ -10,41 +10,46 @@ module fetch_queue_ring (
 );
 
   logic [31:0] word;
-  logic [30:0] pc;
+  logic [31:0] pc;
   logic [7:0]  ctl;
 
   lfsr_src #(.W(32)) u_srcW (.clk, .perturb(perturb), .q(word));
-  lfsr_src #(.W(31)) u_srcP (.clk, .perturb(word[0]), .q(pc));
+  lfsr_src #(.W(32)) u_srcP (.clk, .perturb(word[0]), .q(pc));
   lfsr_src #(.W(8))  u_srcC (.clk, .perturb(pc[0]),   .q(ctl));
 
   logic        canFetch;
   logic        popValidA, popValidB;
-  logic [30:0] popPcA, popPcB;
+  logic [31:2] popPcA, popPcB;
+  logic [1:0]  popHwA, popHwB;
   logic [31:0] popWordA, popWordB;
 
   fetch_queue u_dut (
     .clk,
-    .resetn     (ctl[7]),
-    .flush      (ctl[6]),
+    .resetn       (ctl[7]),
+    .flush        (ctl[6]),
 
-    .push_valid (ctl[5]),
-    .push_pc    (pc),
-    .push_word  (word),
+    .push_valid   (ctl[5]),
+    .push_pc      (pc[31:2]),
+    .push_hwValid (ctl[3:2]),
+    .push_word    (word),
 
-    .canFetch   (canFetch),
+    .canFetch     (canFetch),
 
-    .pop_validA (popValidA),
-    .pop_pcA    (popPcA),
-    .pop_wordA  (popWordA),
-    .pop_validB (popValidB),
-    .pop_pcB    (popPcB),
-    .pop_wordB  (popWordB),
-    .pop_taken  (ctl[4])
+    .pop_validA   (popValidA),
+    .pop_pcA      (popPcA),
+    .pop_hwValidA (popHwA),
+    .pop_wordA    (popWordA),
+    .pop_validB   (popValidB),
+    .pop_pcB      (popPcB),
+    .pop_hwValidB (popHwB),
+    .pop_wordB    (popWordB),
+    .pop_taken    (ctl[4])
   );
 
-  xor_sink #(.W(129)) u_sink (
+  xor_sink #(.W(131)) u_sink (
     .clk,
-    .d({canFetch, popValidA, popPcA, popWordA, popValidB, popPcB, popWordB}),
+    .d({canFetch, popValidA, popPcA, popHwA, popWordA,
+                  popValidB, popPcB, popHwB, popWordB}),
     .q(q)
   );
 

@@ -4,13 +4,14 @@
 //  Caches whether a predictable branch lives on a fetch word address, and
 //  where it redirects to. Three BSRAM blocks hold one 54-bit entry:
 //
-//    { valid, isBranch, isConditional, isStraddle, tag[TAG_W], target[31:1] }
+//        53      52       51        50           49       48-42    41-31         30-0
+//    { valid, isBranch, isCond, isStraddle, exitAfterLow, 00..0, tag[TAG_W], target[31:1] }
 //
 //  OUT_REG flips the read register:
 //    0 - block + fabric flop
 //    1 - register packed in the block itself
 //
-//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): 143.99 / 144.90 / 145.50
+//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
 // ================================================================================
 module btb #(
   parameter bit OUT_REG = 1'b0,
@@ -30,19 +31,21 @@ module btb #(
   output logic               isBranch,
   output logic               isConditional,
   output logic               isStraddle,
+  output logic               exitAfterLow,
   output logic [31:0]        target
 );
 
   // ---- entry field positions ---------------------------------------------------
   localparam int TARGET_LSB   = 0;
   localparam int TAG_LSB      = 31;
+  localparam int EXIT_BIT     = 49;
   localparam int STRADDLE_BIT = 50;
   localparam int COND_BIT     = 51;
   localparam int BRANCH_BIT   = 52;
   localparam int VALID_BIT    = 53;
 
-  logic [INDEX_W-1:0] readAddr;  assign readAddr  = lookupPC[INDEX_W:1];
-  logic [TAG_W-1:0]   lookupTag; assign lookupTag = lookupPC[INDEX_W+TAG_W : INDEX_W+1];
+  logic [INDEX_W-1:0] readAddr;  assign readAddr  = lookupPC[INDEX_W+1       : 2];
+  logic [TAG_W-1:0]   lookupTag; assign lookupTag = lookupPC[INDEX_W+TAG_W+1 : INDEX_W+2];
 
   // ---- storage: three 18-bit blocks --------------------------------------------
   logic [53:0] rawEntry;
@@ -80,6 +83,7 @@ module btb #(
   assign isBranch      = entry[BRANCH_BIT];
   assign isConditional = entry[COND_BIT];
   assign isStraddle    = entry[STRADDLE_BIT];
+  assign exitAfterLow  = entry[EXIT_BIT];
   assign target        = {entry[TARGET_LSB +: 31], 1'b0};
   assign hit           = entry[VALID_BIT] && (entry[TAG_LSB +: TAG_W] == compareTag);
 

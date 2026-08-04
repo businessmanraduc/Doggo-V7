@@ -4,7 +4,14 @@
 //  Decouples the fetch pipeline from decode. One entry per 32-bit cache word,
 //  carrying its own PC so nothing downstream has to reconstruct it.
 //
-//    entry = { pc[31:1], word[31:0] }
+//    entry = { pc[31:2], hwValid[1:0], word[31:0] }
+//
+//  hwValid is the halfword-valid mask the predictor published for this word:
+//    11  both halves live          01  stream exits after the low half
+//    10  entered at the high half  00  dead word
+//
+//  A dead word is dropped at the push port rather than stored, so align only
+//  ever sees entries with at least one live halfword.
 //
 //  Two entries are visible at once (head and head+1) because of the possibility
 //  that a 32-bit instruction might straddle a word boundary. The second read
@@ -28,7 +35,8 @@ module fetch_queue #(
 
   // ---- push: from the cache's F3, one word per hit -----------------------------
   input  logic        push_valid,
-  input  logic [30:0] push_pc,
+  input  logic [31:2] push_pc,
+  input  logic [1:0]  push_hwValid,
   input  logic [31:0] push_word,
 
   // ---- credit: back to F0 ------------------------------------------------------
@@ -36,16 +44,18 @@ module fetch_queue #(
 
   // ---- pop: two entries visible to align, at most one taken --------------------
   output logic        pop_validA,
-  output logic [30:0] pop_pcA,
+  output logic [31:2] pop_pcA,
+  output logic [1:0]  pop_hwValidA,
   output logic [31:0] pop_wordA,
   output logic        pop_validB,
-  output logic [30:0] pop_pcB,
+  output logic [31:2] pop_pcB,
+  output logic [1:0]  pop_hwValidB,
   output logic [31:0] pop_wordB,
   input  logic        pop_taken
 );
 
-  localparam int PC_W    = 31;
-  localparam int ENTRY_W = PC_W + 32;
+  localparam int PC_W    = 30;
+  localparam int ENTRY_W = PC_W + 2 + 32;
 
   logic [IDX_W-1:0] head, tail, aheadIdx;
   logic [IDX_W:0]   count;
@@ -61,7 +71,7 @@ module fetch_queue #(
   assign dropPush = |flushShadow;
 
   // ---- handshakes --------------------------------------------------------------
-  assign doPush     = push_valid && !dropPush && !count[IDX_W];
+  assign doPush     = push_valid && !dropPush && !count[IDX_W] && (push_hwValid != 2'b00);
   assign doPop      = pop_validA && pop_taken;
   assign pop_validA = (count != '0);
   assign pop_validB = |count[IDX_W:1];
@@ -73,14 +83,14 @@ module fetch_queue #(
 
   always_ff @(posedge clk) begin
     if (doPush) begin
-      memA[tail] <= {push_pc, push_word};
-      memB[tail] <= {push_pc, push_word};
+      memA[tail] <= {push_pc, push_hwValid, push_word};
+      memB[tail] <= {push_pc, push_hwValid, push_word};
     end
   end
 
   assign aheadIdx = head + IDX_W'(1);
-  assign {pop_pcA, pop_wordA} = memA[head];
-  assign {pop_pcB, pop_wordB} = memB[aheadIdx];
+  assign {pop_pcA, pop_hwValidA, pop_wordA} = memA[head];
+  assign {pop_pcB, pop_hwValidB, pop_wordB} = memB[aheadIdx];
 
   // ---- pointers ----------------------------------------------------------------
   always_ff @(posedge clk) begin
