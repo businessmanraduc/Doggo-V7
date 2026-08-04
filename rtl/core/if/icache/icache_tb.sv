@@ -11,6 +11,7 @@ module icache_tb;
   logic        resetn;
   logic [31:0] lookupAddr;
   logic        lookupValid;
+  logic        lookupKill;
   logic [31:0] instrWord;
   logic        hit;
   logic        fillBusy;
@@ -24,7 +25,7 @@ module icache_tb;
 
   icache dut (
     .clk, .resetn,
-    .lookupAddr, .lookupValid, .instrWord, .hit, .fillBusy,
+    .lookupAddr, .lookupValid, .lookupKill, .instrWord, .hit, .fillBusy,
     .fillAddr, .fillReq, .fillRData, .fillRValid
   );
 
@@ -96,7 +97,7 @@ module icache_tb;
   endtask
 
   initial begin
-    resetn = 1'b0; lookupValid = 1'b0; lookupAddr = '0;
+    resetn = 1'b0; lookupValid = 1'b0; lookupKill = 1'b0; lookupAddr = '0;
     poisonTags();
     repeat (3) @(negedge clk);
     resetn = 1'b1;
@@ -126,10 +127,44 @@ module icache_tb;
     // ---- a walk over many lines, each satisfied by its own fill ----------------
     checkManyLines();
 
+    // ---- a disowned miss must not reach the fill engine ------------------------
+    checkKilledMissNeverFills();
+
     if (errors == 0) $display("PASS  icache");
     else             $fatal(1, "FAIL  icache (%0d errors)", errors);
     $finish;
   end
+
+  // ---- a lookup the front end disowns at F3 must not start a fill --------------
+  task automatic checkKilledMissNeverFills();
+    int fillsBefore;
+
+    fillsBefore = fillCount;
+
+    // a cold address, but killed on the cycle its verdict lands
+    @(negedge clk); lookupAddr = 32'h0002_4000; lookupValid = 1'b1;
+    @(negedge clk); lookupValid = 1'b0;
+    repeat (2) @(negedge clk);
+    lookupKill = 1'b1;
+    @(negedge clk);
+    lookupKill = 1'b0;
+
+    repeat (20) @(negedge clk);
+    if (fillCount != fillsBefore) begin
+      $error("killed miss started a fill (%0d -> %0d)", fillsBefore, fillCount);
+      errors++;
+    end
+    if (fillBusy !== 1'b0) begin
+      $error("killed miss left the fill engine busy"); errors++;
+    end
+
+    // and the same address still fills normally once it is not disowned
+    fetchThroughMiss(32'h0002_4000, "killed then wanted");
+    if (fillCount != fillsBefore + 1) begin
+      $error("expected one fill after the kill, saw %0d", fillCount - fillsBefore);
+      errors++;
+    end
+  endtask
 
   // ---- before initDone the tag LUTRAM is garbage: hit must stay low ------------
   task automatic checkSweepBlocksHits();

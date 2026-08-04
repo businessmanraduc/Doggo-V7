@@ -4,8 +4,10 @@
 //  Decouples the fetch pipeline from decode. One entry per 32-bit cache word,
 //  carrying its own PC so nothing downstream has to reconstruct it.
 //
-//    entry = { pc[31:2], hwValid[1:0], word[31:0] }
+//    entry A = { pc[31:2], hwValid[1:0], gshare[12:0], word[31:0] }
+//    entry B = { pc[31:2], hwValid[1:0], word[31:0] }
 //
+//  gshare is the PHT index the predictor used for this word.
 //  hwValid is the halfword-valid mask the predictor published for this word:
 //    11  both halves live          01  stream exits after the low half
 //    10  entered at the high half  00  dead word
@@ -41,6 +43,7 @@ module fetch_queue #(
   input  logic        push_valid,
   input  logic [31:2] push_pc,
   input  logic [1:0]  push_hwValid,
+  input  logic [12:0] push_gshare,
   input  logic [31:0] push_word,
 
   // ---- credit: back to F0 ------------------------------------------------------
@@ -50,6 +53,7 @@ module fetch_queue #(
   output logic        pop_validA,
   output logic [31:2] pop_pcA,
   output logic [1:0]  pop_hwValidA,
+  output logic [12:0] pop_gshareA,
   output logic [31:0] pop_wordA,
   output logic        pop_validB,
   output logic [31:2] pop_pcB,
@@ -58,8 +62,10 @@ module fetch_queue #(
   input  logic [1:0]  pop_take
 );
 
-  localparam int PC_W    = 30;
-  localparam int ENTRY_W = PC_W + 2 + 32;
+  localparam int PC_W      = 30;
+  localparam int GSHARE_W  = 13;
+  localparam int ENTRY_A_W = PC_W + 2 + GSHARE_W + 32;
+  localparam int ENTRY_B_W = PC_W + 2 + 32;
 
   logic [IDX_W-1:0] head, tail, aheadIdx;
   logic [IDX_W:0]   count;
@@ -86,19 +92,19 @@ module fetch_queue #(
   assign canFetch   = (count <= (IDX_W+1)'(DEPTH - FETCH_LATENCY - 1));
 
   // ---- payload: one copy per read port -----------------------------------------
-  (* ram_style = "distributed" *) logic [ENTRY_W-1:0] memA [DEPTH];
-  (* ram_style = "distributed" *) logic [ENTRY_W-1:0] memB [DEPTH];
+  (* ram_style = "distributed" *) logic [ENTRY_A_W-1:0] memA [DEPTH];
+  (* ram_style = "distributed" *) logic [ENTRY_B_W-1:0] memB [DEPTH];
 
   always_ff @(posedge clk) begin
     if (doPush) begin
-      memA[tail] <= {push_pc, push_hwValid, push_word};
+      memA[tail] <= {push_pc, push_hwValid, push_gshare, push_word};
       memB[tail] <= {push_pc, push_hwValid, push_word};
     end
   end
 
   assign aheadIdx = head + IDX_W'(1);
-  assign {pop_pcA, pop_hwValidA, pop_wordA} = memA[head];
-  assign {pop_pcB, pop_hwValidB, pop_wordB} = memB[aheadIdx];
+  assign {pop_pcA, pop_hwValidA, pop_gshareA, pop_wordA} = memA[head];
+  assign {pop_pcB, pop_hwValidB,              pop_wordB} = memB[aheadIdx];
 
   // ---- pointers ----------------------------------------------------------------
   always_ff @(posedge clk) begin

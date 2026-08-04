@@ -63,7 +63,8 @@ module bpredict #(
   output logic [31:0]            nextPC,
   output logic                   fetchValid,
   output logic [31:2]            fetchPC,
-  output logic [1:0]             fetchHwValid
+  output logic [1:0]             fetchHwValid,
+  output logic [PHT_INDEX_W-1:0] fetchGshare
 );
 
   // ---- F0 -> lookup address + gshare index -------------------------------------
@@ -151,6 +152,19 @@ module bpredict #(
       redirectedF1  <= takenNow || straddlePending;
     end
   end
+
+  // ---- gshare snapshot: history delayed to match BSRAM read --------------------
+  logic [PHT_INDEX_W-1:0] bhrF1, bhrF2;
+  always_ff @(posedge clk) begin
+    if (boot || redirectValid) begin
+      bhrF1 <= boot ? '0 : redirectBHR;
+      bhrF2 <= boot ? '0 : redirectBHR;
+    end else if (!stall) begin
+      bhrF1 <= branchHistory;
+      bhrF2 <= bhrF1;
+    end
+  end
+  assign fetchGshare = fetchPC[PHT_INDEX_W+1:2] ^ bhrF2;
 
   logic lowLive, highLive;
   assign lowLive  = ~prevStartHigh;

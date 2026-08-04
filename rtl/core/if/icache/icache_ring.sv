@@ -16,7 +16,7 @@ module icache_ring (input logic clk, input logic perturb, output logic q);
 
   icache u_dut (
     .clk, .resetn(s0[31]),
-    .lookupAddr(s1), .lookupValid(s2[0]),
+    .lookupAddr(s1), .lookupValid(s2[0]), .lookupKill(s2[1]),
     .instrWord, .hit, .fillBusy,
     .fillAddr, .fillReq, .fillRData(s3), .fillRValid(s2[31])
   );

@@ -24,6 +24,7 @@ module bpredict_tb;
   logic                   fetchValid;
   logic [31:2]            fetchPC;
   logic [1:0]             fetchHwValid;
+  logic [12:0]            fetchGshare;
 
   int errors = 0;
 
@@ -32,7 +33,7 @@ module bpredict_tb;
     .clk, .boot, .redirectValid, .redirectPC, .redirectBHR, .stall,
     .btbWrEnable, .btbWrIndex, .btbWrEntry,
     .phtWrEnable, .phtWrIndex, .phtWrCounter,
-    .nextPC, .fetchValid, .fetchPC, .fetchHwValid
+    .nextPC, .fetchValid, .fetchPC, .fetchHwValid, .fetchGshare
   );
 
   initial begin
@@ -43,6 +44,7 @@ module bpredict_tb;
   // ---- recorded fetch stream ---------------------------------------------------
   logic [31:2] recPC   [0:127];
   logic [1:0]  recMask [0:127];
+  logic [12:0] recGs   [0:127];
   int          recCount;
 
   task automatic step(input int cycles);
@@ -51,6 +53,7 @@ module bpredict_tb;
       if (fetchValid && recCount < 128) begin
         recPC[recCount]   = fetchPC;
         recMask[recCount] = fetchHwValid;
+        recGs[recCount]   = fetchGshare;
         recCount++;
       end
     end
@@ -119,6 +122,21 @@ module bpredict_tb;
     step(cycles);
   endtask
 
+  task automatic runFromParked(input logic [31:0] start, input int cycles,
+                               input int parkAfter, input int parkLen);
+    @(negedge clk);
+    redirectValid = 1'b1;
+    redirectPC    = start;
+    @(negedge clk);
+    redirectValid = 1'b0;
+    recCount = 0;
+    step(parkAfter);
+    stall = 1'b1;
+    repeat (parkLen) @(negedge clk);
+    stall = 1'b0;
+    step(cycles - parkAfter);
+  endtask
+
   task automatic expectAt(input int idx, input logic [31:0] pc,
                           input logic [1:0] mask, input string note);
     if (idx < 0 || idx >= recCount) begin
@@ -155,6 +173,8 @@ module bpredict_tb;
     checkBhrRestore();
     checkBhrConditionalOnly();
     checkBhrAcrossPark();
+    checkGshareAlignment();
+    checkGshareAcrossShift();
 
     if (errors == 0) $display("PASS  bpredict");
     else             $fatal(1, "FAIL  bpredict (%0d errors)", errors);
@@ -365,6 +385,84 @@ module bpredict_tb;
     if (dut.branchHistory !== {base[11:0], 1'b0}) begin
       $error("bhr: conditional gave %h (expected %h)",
              dut.branchHistory, {base[11:0], 1'b0}); errors++;
+    end
+  endtask
+
+  // ---- the snapshot must be the index the PHT was actually probed with ---------
+  task automatic checkGshareAlignment();
+    logic [12:0] bhr;
+
+    bhr         = 13'h0000;
+    redirectBHR = bhr;
+    runFrom(32'h0000_7000, 10);
+    expectGshareRun(bhr, "gshare: zero history");
+
+    bhr         = 13'h1AC5;
+    redirectBHR = bhr;
+    runFrom(32'h0000_7400, 10);
+    expectGshareRun(bhr, "gshare: loaded history");
+  endtask
+
+  task automatic expectGshareRun(input logic [12:0] bhr, input string note);
+    if (recCount < 4) begin
+      $error("%-28s only %0d words recorded", note, recCount); errors++;
+      return;
+    end
+    for (int k = 0; k < recCount; k++) begin
+      if (recGs[k] !== (recPC[k][14:2] ^ bhr)) begin
+        $error("%-28s word %h gshare=%h (expected %h)", note,
+               {recPC[k], 2'b00}, recGs[k], recPC[k][14:2] ^ bhr); errors++;
+        return;
+      end
+    end
+  endtask
+
+  // ---- the snapshot must move with the history, three words behind the branch --
+  task automatic checkGshareAcrossShift();
+    logic [12:0] b, bAfter;
+    int i;
+
+    b      = 13'h1AC5;
+    bAfter = {b[11:0], 1'b0};
+
+    redirectBHR = b;
+    trainPht(32'h0000_7810, b, 2'd0);              // strongly not taken
+    installBranchC(32'h0000_7810, 32'h0000_3700, 1'b1);
+    runFrom(32'h0000_7800, 14);
+
+    expectShiftStream(b, bAfter, "gshare shift");
+
+    //  a park freezes the history pipeline with everything else, so the same
+    //  stream must come out whatever cycle it lands on
+    for (int p = 1; p <= 6; p++) begin
+      runFromParked(32'h0000_7800, 14, p, 3);
+      expectShiftStream(b, bAfter, $sformatf("gshare park@%0d", p));
+    end
+  endtask
+
+  task automatic expectShiftStream(input logic [12:0] b, input logic [12:0] bAfter,
+                                   input string note);
+    int i;
+    i = findPC(32'h0000_7810);
+    if (i < 0 || i + 4 >= recCount) begin
+      $error("%-28s branch word not in the recorded stream", note); errors++;
+      return;
+    end
+    expectGshareAt(i,   32'h0000_7810, b,      {note, ": branch word"});
+    expectGshareAt(i+1, 32'h0000_7814, b,      {note, ": +1 old history"});
+    expectGshareAt(i+2, 32'h0000_7818, b,      {note, ": +2 old history"});
+    expectGshareAt(i+3, 32'h0000_781C, bAfter, {note, ": +3 new history"});
+    expectGshareAt(i+4, 32'h0000_7820, bAfter, {note, ": +4 new history"});
+  endtask
+
+  task automatic expectGshareAt(input int idx, input logic [31:0] pc,
+                                input logic [12:0] bhr, input string note);
+    if (recPC[idx] !== pc[31:2]) begin
+      $error("%-28s slot %0d is word %h (expected %h)",
+             note, idx, {recPC[idx], 2'b00}, pc); errors++;
+    end else if (recGs[idx] !== (pc[14:2] ^ bhr)) begin
+      $error("%-28s word %h gshare=%h (expected %h)",
+             note, pc, recGs[idx], pc[14:2] ^ bhr); errors++;
     end
   endtask
 

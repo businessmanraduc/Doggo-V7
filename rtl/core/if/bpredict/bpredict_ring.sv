@@ -14,16 +14,17 @@ module bpredict_ring (input logic clk, input logic perturb, output logic q);
   logic        fetchValid;
   logic [31:2] fetchPC;
   logic [1:0]  fetchHwValid;
+  logic [PHT_W-1:0] fetchGshare;
   bpredict #(.OUT_REG(1'b0), .BTB_INDEX_W(BTB_W), .PHT_INDEX_W(PHT_W)) u_dut (
     .clk, .boot(s0[7]), .redirectValid(s0[3]), .redirectPC(s1),
     .redirectBHR(s2[PHT_W:1]), .stall(s0[5]),
     .btbWrEnable(s2[0]), .btbWrIndex(s2[BTB_W:1]), .btbWrEntry({s3[21:0], s1}),
     .phtWrEnable(s2[1]), .phtWrIndex(s3[PHT_W:1]), .phtWrCounter(s3[13:12]),
     .nextPC(nextPC),     .fetchValid(fetchValid),  .fetchPC(fetchPC),
-    .fetchHwValid(fetchHwValid)
+    .fetchHwValid(fetchHwValid), .fetchGshare(fetchGshare)
   );
-  xor_sink #(.W(65)) u_sink (
-    .clk, .d({nextPC, fetchPC, fetchValid, fetchHwValid}), .q(q)
+  xor_sink #(.W(78)) u_sink (
+    .clk, .d({nextPC, fetchPC, fetchGshare, fetchValid, fetchHwValid}), .q(q)
   );
 endmodule
 

@@ -29,6 +29,7 @@ module align (
   input  logic        fq_validA,
   input  logic [31:2] fq_pcA,
   input  logic [1:0]  fq_hwValidA,
+  input  logic [12:0] fq_gshareA,
   input  logic [31:0] fq_wordA,
   input  logic        fq_validB,
   input  logic [1:0]  fq_hwValidB,
@@ -40,6 +41,7 @@ module align (
   output logic [31:1] out_pc,
   output logic [31:0] out_instr,
   output logic        out_isCompressed,
+  output logic [12:0] out_gshare,
   input  logic        out_ready
 );
 
@@ -74,6 +76,9 @@ module align (
     if (!resetn || flush)            half <= 1'b0;
     else if (out_valid && out_ready) half <= nextHalf;
   end
+
+  // ---- forwarding the predictor's PHT index ------------------------------------
+  assign out_gshare = fq_gshareA;
 
 endmodule
 

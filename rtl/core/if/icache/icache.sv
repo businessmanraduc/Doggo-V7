@@ -13,6 +13,9 @@
 //    F2 - tag compare; word, verdict, victim land here
 //    F3 - pick way, report, touch PLRU, hand miss to fill engine
 //
+//  A lookup can be disowned at F3 with lookupKill, so a word the frontend no
+//  longer wants (wrong path/dead word behind taken branch) never starts a fill.
+//
 //  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
 // ================================================================================
 module icache #(
@@ -27,6 +30,7 @@ module icache #(
   // ---- fetch port --------------------------------------------------------------
   input  logic [31:0] lookupAddr,
   input  logic        lookupValid,
+  input  logic        lookupKill,
   output logic [31:0] instrWord,
   output logic        hit,
   output logic        fillBusy,
@@ -186,7 +190,7 @@ module icache #(
     .SET_IDX_W(SET_IDX_W), .WIL_W(WIL_W), .TAG_W(TAG_W), .WORDIDX_W(WORDIDX_W)
   ) u_fill (
     .clk, .resetn,
-    .missValid (lookupValidF3 && !hit),
+    .missValid (lookupValidF3 && !hit && !lookupKill),
     .missTag(lookupTagF3), .missSet(lookupSetF3), .missVictim(victimWay),
     .fillAddr, .fillReq, .fillRData, .fillRValid,
     .dataWrEnable, .dataWrIndex, .dataWrWord,

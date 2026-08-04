@@ -13,21 +13,23 @@ module fetch_queue_tb;
   logic        push_valid;
   logic [31:2] push_pc;
   logic [1:0]  push_hwValid;
+  logic [12:0] push_gshare;
   logic [31:0] push_word;
   logic        canFetch;
   logic        pop_validA, pop_validB;
   logic [1:0]  pop_take;
   logic [31:2] pop_pcA, pop_pcB;
   logic [1:0]  pop_hwValidA, pop_hwValidB;
+  logic [12:0] pop_gshareA;
   logic [31:0] pop_wordA, pop_wordB;
 
   int errors = 0;
 
   fetch_queue #(.DEPTH(DEPTH), .FETCH_LATENCY(LATENCY)) dut (
     .clk, .resetn, .flush,
-    .push_valid, .push_pc, .push_hwValid, .push_word,
+    .push_valid, .push_pc, .push_hwValid, .push_gshare, .push_word,
     .canFetch,
-    .pop_validA, .pop_pcA, .pop_hwValidA, .pop_wordA,
+    .pop_validA, .pop_pcA, .pop_hwValidA, .pop_gshareA, .pop_wordA,
     .pop_validB, .pop_pcB, .pop_hwValidB, .pop_wordB,
     .pop_take
   );
@@ -40,6 +42,7 @@ module fetch_queue_tb;
   // ---- payloads carry their own index so ordering is self-checking -------------
   function automatic logic [31:2] pcOf (input int n); return 30'(32'h0000_1000 + n); endfunction
   function automatic logic [31:0] wdOf (input int n); return 32'hA000_0000 + n;      endfunction
+  function automatic logic [12:0] gsOf (input int n); return 13'(32'h0000_1555 + n); endfunction
 
   // ---- one clock with the given stimulus held across the edge ------------------
   task automatic cycle(input logic pv, input int n, input logic [1:0] hw,
@@ -47,6 +50,7 @@ module fetch_queue_tb;
     push_valid   = pv;
     push_pc      = pcOf(n);
     push_hwValid = hw;
+    push_gshare  = gsOf(n);
     push_word    = wdOf(n);
     pop_take     = take;
     flush        = fl;
@@ -65,6 +69,8 @@ module fetch_queue_tb;
              note, pop_pcA, pop_wordA, pcOf(n), wdOf(n)); errors++;
     end else if (pop_hwValidA !== hw) begin
       $error("%-24s head hwValid=%b (expected %b)", note, pop_hwValidA, hw); errors++;
+    end else if (pop_gshareA !== gsOf(n)) begin
+      $error("%-24s head gshare=%h (expected %h)", note, pop_gshareA, gsOf(n)); errors++;
     end
   endtask
 

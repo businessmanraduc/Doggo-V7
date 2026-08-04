@@ -6,10 +6,10 @@
 //  First-word-fall-through: deq_data is live whenever deq_valid.
 //  Flush empties the queue at next edge; same-cycle handshakes are dropped.
 //
-//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): 196.23 / 215.92 / 232.40
+//  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
 // ================================================================================
 module dispatch_fifo #(
-  parameter int W     = 96,
+  parameter int W     = 109,
   parameter int DEPTH = 8,
   parameter int IDX_W = $clog2(DEPTH)
 ) (

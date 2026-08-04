@@ -4,7 +4,7 @@
 // ================================================================================
 
 module dispatch_fifo_tb;
-  localparam int W     = 96;
+  localparam int W     = 109;
   localparam int DEPTH = 8;
 
   logic         clk = 0, resetn, flush;
@@ -60,61 +60,62 @@ module dispatch_fifo_tb;
     if (!enq_ready) fail("A: not ready while empty");
 
     // ---- B: one word in, same word out, in that order --------------------------
-    enqOne(96'hAAAA_BBBB_CCCC_DDDD_EEEE_0001, "B");
+    enqOne(109'hAAAA_BBBB_CCCC_DDDD_EEEE_0001, "B");
     if (!deq_valid) fail("B: deq_valid clear after enq");
-    deqOne(96'hAAAA_BBBB_CCCC_DDDD_EEEE_0001, "B");
+    deqOne(109'hAAAA_BBBB_CCCC_DDDD_EEEE_0001, "B");
     if (deq_valid)  fail("B: deq_valid set after drain");
 
     // ---- C: fills up exactly at DEPTH, drains in order -------------------------
     for (int i = 0; i < DEPTH; i++) begin
       if (!enq_ready) fail($sformatf("C: not ready at entry %0d", i));
-      enqOne(96'h1000 + W'(i), "C");
+      enqOne(109'h1000 + W'(i), "C");
     end
     if (enq_ready) fail("C: still ready after DEPTH enqueues");
     for (int i = 0; i < DEPTH; i++)
-      deqOne(96'h1000 + W'(i), "C");
+      deqOne(109'h1000 + W'(i), "C");
     if (deq_valid) fail("C: still valid after full drain");
 
     // ---- D: enq while full is refused, nothing is lost or reordered ------------
-    for (int i = 0; i < DEPTH; i++) enqOne(96'h2000 + W'(i), "D");
-    enq_valid = 1; enq_data = 96'hDEAD;   // held at a closed door
+    for (int i = 0; i < DEPTH; i++) enqOne(109'h2000 + W'(i), "D");
+    enq_valid = 1; enq_data = 109'hDEAD;   // held at a closed door
     #1;
     if (enq_ready) fail("D: ready while full");
     @(posedge clk); #1;
     enq_valid = 0;
     for (int i = 0; i < DEPTH; i++)
-      deqOne(96'h2000 + W'(i), "D");
+      deqOne(109'h2000 + W'(i), "D");
     if (deq_valid) fail("D: phantom entry after refused enq");
 
     // ---- E: streaming, simultaneous enq + deq at partial fill ------------------
-    enqOne(96'h3000, "E");
+    enqOne(109'h3000, "E");
     for (int i = 1; i <= 20; i++) begin
-      enq_valid = 1; enq_data = 96'h3000 + W'(i); deq_ready = 1;
+      enq_valid = 1; enq_data = 109'h3000 + W'(i); deq_ready = 1;
       #1;
       if (!enq_ready || !deq_valid)          fail("E: stream stalled");
-      else if (deq_data !== 96'h3000 + W'(i - 1)) fail("E: stream out of order");
+      else if (deq_data !== 109'h3000 + W'(i - 1)) fail("E: stream out of order");
       @(posedge clk); #1;
     end
     enq_valid = 0;
-    deqOne(96'h3000 + W'(20), "E");
+    deqOne(109'h3000 + W'(20), "E");
     if (deq_valid) fail("E: not empty after stream drain");
 
     // ---- F: flush empties it ---------------------------------------------------
-    for (int i = 0; i < 5; i++) enqOne(96'h4000 + W'(i), "F");
+    for (int i = 0; i < 5; i++) enqOne(109'h4000 + W'(i), "F");
     #1 flush = 1;
     @(posedge clk); #1;
     flush = 0;
     if (deq_valid)  fail("F: deq_valid set after flush");
     if (!enq_ready) fail("F: not ready after flush");
-    enqOne(96'h5000, "F");
-    deqOne(96'h5000, "F: first word after flush");
+    enqOne(109'h5000, "F");
+    deqOne(109'h5000, "F: first word after flush");
 
     // ---- G: random stress against a reference queue ----------------------------
     for (int k = 0; k < 5000; k++) begin
       automatic logic         ev = 1'($urandom());
       automatic logic         dr = 1'($urandom());
       automatic logic         fl = ($urandom_range(0, 99) == 0);
-      automatic logic [W-1:0] d  = {32'($urandom()), 32'($urandom()), 32'($urandom())};
+      automatic logic [W-1:0] d  = W'({32'($urandom()), 32'($urandom()),
+                                       32'($urandom()), 32'($urandom())});
       automatic logic         mEnq, mDeq;
 
       enq_valid = ev; enq_data = d; deq_ready = dr; flush = fl;
