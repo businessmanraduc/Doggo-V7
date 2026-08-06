@@ -32,7 +32,7 @@
 // ================================================================================
 module fetch_queue #(
   parameter int DEPTH         = 16,
-  parameter int FETCH_LATENCY = 3,
+  parameter int FETCH_LATENCY = 4,
   parameter int IDX_W         = $clog2(DEPTH)
 ) (
   input  logic        clk,

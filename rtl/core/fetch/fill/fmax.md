@@ -4,29 +4,29 @@ ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 
 | floor | mean | ceil |
 |---|---|---|
-| 200.08 | 214.66 | 225.63 |
+| 191.09 | 213.29 | 232.40 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 224.67 | u_dut.state          -> u_dut.state |
-| 2 | 216.31 | u_dut.state          -> u_dut.tagWrTag |
-| 3 | 225.63 | u_dut.state          -> u_dut.beatCount |
-| 4 | 207.60 | u_dut.state          -> u_dut.state |
-| 5 | 223.61 | u_dut.sweepCount     -> u_dut.state |
-| 6 | 209.38 | u_dut.state          -> u_dut.state |
-| 7 | 224.77 | u_dut.state          -> u_dut.state |
-| 8 | 202.14 | u_dut.state          -> u_dut.state |
-| 9 | 204.29 | u_dut.state          -> u_dut.state |
-| 10 | 217.39 | u_dut.state          -> u_dut.state |
-| 11 | 216.40 | u_dut.state          -> u_dut.state |
-| 12 | 224.11 | u_dut.state          -> u_dut.state |
-| 13 | 210.66 | u_dut.state          -> u_dut.beatCount |
-| 14 | 216.40 | u_dut.state          -> u_dut.state |
-| 15 | 200.08 | u_dut.state          -> u_dut.tagWrTag |
-| 16 | 203.38 | u_dut.state          -> u_dut.state |
-| 17 | 211.24 | u_dut.state          -> u_dut.state |
-| 18 | 221.04 | u_dut.state          -> u_dut.state |
-| 19 | 213.36 | u_dut.state          -> u_dut.state |
-| 20 | 220.80 | u_dut.state          -> u_dut.state |
+| 1 | 216.17 | u_dut.state          -> u_dut.tagWrTag |
+| 2 | 205.80 | u_dut.state          -> u_dut.state |
+| 3 | 203.46 | u_dut.state          -> u_dut.state |
+| 4 | 208.20 | u_dut.state          -> u_dut.state |
+| 5 | 213.27 | u_dut.state          -> u_dut.state |
+| 6 | 224.42 | u_dut.sweepCount     -> u_dut.settleCount |
+| 7 | 213.68 | u_dut.state          -> u_dut.state |
+| 8 | 219.20 | u_dut.state          -> u_dut.state |
+| 9 | 232.40 | u_dut.state          -> u_dut.state |
+| 10 | 202.68 | u_dut.state          -> u_dut.state |
+| 11 | 191.09 | u_dut.state          -> u_dut.state |
+| 12 | 226.81 | u_dut.state          -> u_dut.tagWrTag |
+| 13 | 220.46 | u_dut.state          -> u_dut.state |
+| 14 | 221.58 | u_dut.state          -> u_dut.tagWrTag |
+| 15 | 211.55 | u_dut.state          -> u_dut.state |
+| 16 | 219.78 | u_dut.sweepCount     -> u_dut.state |
+| 17 | 194.48 | u_dut.state          -> u_dut.state |
+| 18 | 199.96 | u_dut.state          -> u_dut.state |
+| 19 | 224.22 | u_dut.sweepCount     -> u_dut.settleCount |
+| 20 | 216.59 | u_dut.state          -> u_dut.state |

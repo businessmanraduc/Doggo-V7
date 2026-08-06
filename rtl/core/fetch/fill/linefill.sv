@@ -5,14 +5,16 @@
 //  the burst request to memory, and the writes into tag/data arrays.
 //
 //  States:
-//    SWEEP  128 cycles clearing every valid bit, all four ways at once.
-//           initDone is low and the cache does not report hits.
-//    IDLE   waiting for a miss.
-//    FILL   fillReq held, one word written per fillRValid beat into the victim.
-//    TAG    the tag goes in last so a lookup racing the fill either misses or
-//           hits a line that is complete, never half-filled.
-//    DRAIN  three cycles, so that the in-flight lookups can be cleared since
-//           they now hold stale information about the newly-filled line.
+//    SWEEP   128 cycles clearing every valid bit, all four ways at once.
+//            initDone is low and the cache does not report hits.
+//    SETTLE  four cycles. The tag block samples the array in F0, so a lookup can
+//            still be carrying pre-sweep tag data three cycles after set was cleared.
+//    IDLE    waiting for a miss.
+//    FILL    fillReq held, one word written per fillRValid beat into the victim.
+//    TAG     the tag goes in last so a lookup racing the fill either misses or
+//            hits a line that is complete, never half-filled.
+//    DRAIN   three cycles, so that the in-flight lookups can be cleared since
+//            they now hold stale information about the newly-filled line.
 //
 //  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
 // ================================================================================
@@ -67,7 +69,7 @@ module linefill #(
   logic [SET_IDX_W-1:0] sweepCount;
   logic [WIL_W-1:0]     beatCount;
   logic [1:0]           drainCount;
-  logic [1:0]           settleCount;
+  logic [2:0]           settleCount;
   logic [TAG_W-1:0]     fillTag;
   logic [SET_IDX_W-1:0] fillSet;
   logic [1:0]           fillWay;
@@ -92,7 +94,7 @@ module linefill #(
 
         S_SETTLE: begin
           settleCount <= settleCount + 1'b1;
-          if (settleCount == 2'd2) state <= S_IDLE;
+          if (settleCount == 3'd3) state <= S_IDLE;
         end
 
         S_IDLE: begin
@@ -166,7 +168,12 @@ module linefill #(
     end
   end
 
-  assign initDone = (state != S_SWEEP) && (state != S_SETTLE);
+  logic initDoneQ;
+  always_ff @(posedge clk) begin
+    if (!resetn) initDoneQ <= 1'b0;
+    else         initDoneQ <= (state != S_SWEEP) && (state != S_SETTLE);
+  end
+  assign initDone = initDoneQ;
   assign fillBusy = (state != S_IDLE);
 
 endmodule

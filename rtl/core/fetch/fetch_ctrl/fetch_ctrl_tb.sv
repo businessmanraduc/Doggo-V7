@@ -1,7 +1,7 @@
 // ================================================================================
 //  fetch_ctrl_tb -- models the pipeline around the control block rather than
 //  hand-counting it: one present() call is one F0 cycle, and the harness delivers
-//  that word's metadata at F1 and its cache verdict at F3 by itself. A word is
+//  that word's metadata at F1 and its cache verdict at F4 by itself. A word is
 //  only consumed when the block actually issues a lookup, so parks need no
 //  special handling.
 // ================================================================================
@@ -51,7 +51,7 @@ module fetch_ctrl_tb;
   logic             curHit;
 
   // metadata lands one cycle behind its lookup, the cache verdict three
-  logic hitF1, hitF2;
+  logic hitF1, hitF2, hitF3;
   always_ff @(posedge clk) begin
     if (lookupValid) begin
       fetchPC      <= curPC[31:2];
@@ -60,20 +60,21 @@ module fetch_ctrl_tb;
       hitF1        <= curHit;
     end
     hitF2 <= hitF1;
-    hit   <= hitF2;
+    hitF3 <= hitF2;
+    hit   <= hitF3;
   end
 
   // ---- the cache's own qualifier, so the block can be held to it ---------------
-  logic iv1, iv2, iv3;
+  logic iv1, iv2, iv3, iv4;
   always_ff @(posedge clk) begin
-    if (!resetn) begin iv1 <= 1'b0; iv2 <= 1'b0; iv3 <= 1'b0; end
-    else         begin iv1 <= lookupValid; iv2 <= iv1; iv3 <= iv2; end
+    if (!resetn) begin iv1 <= 1'b0;        iv2 <= 1'b0; iv3 <= 1'b0; iv4 <= 1'b0; end
+    else         begin iv1 <= lookupValid; iv2 <= iv1;  iv3 <= iv2;  iv4 <= iv3;  end
   end
 
   always @(posedge clk) begin
-    if (resetn && dut.validF3 && !iv3)
+    if (resetn && dut.validF4 && !iv4)
       fail("invariant: claimed a word the cache was never asked to fetch");
-    if (resetn && pushValid && !iv3)
+    if (resetn && pushValid && !iv4)
       fail("invariant: pushed a word the cache was never asked to fetch");
     if (resetn && replayValid && lookupValid)
       fail("invariant: lookup issued on the replay cycle");
@@ -125,7 +126,7 @@ module fetch_ctrl_tb;
     resetn = 1'b0; fillBusy = 1'b1; canFetch = 1'b1; backendRedirect = 1'b0;
     curPC = '0; curHw = 2'b00; curGs = '0; curHit = MISS;
     fetchPC = '0; fetchHwValid = 2'b00; fetchGshare = '0;
-    hit = 1'b0; hitF1 = 1'b0; hitF2 = 1'b0;
+    hit = 1'b0; hitF1 = 1'b0; hitF2 = 1'b0; hitF3 = 1'b0;
     recCount = 0; repCount = 0;
     repeat (3) @(negedge clk);
     resetn   = 1'b1;
@@ -159,17 +160,17 @@ module fetch_ctrl_tb;
     expectPush(2, 32'h0000_1008, 13'h0333, "A: third");
   endtask
 
-  // ---- B - a dead word is killed at F3: no push, no fill, no park --------------
+  // ---- B - a dead word is killed at F4: no push, no fill, no park --------------
   task automatic checkDeadWordKilled();
     reset();
     present(32'h0000_2000, 2'b11, 13'h0444, HIT);
     present(32'h0000_2004, 2'b00, 13'h0555, MISS);   // dead, and would miss
     present(32'h0000_2008, 2'b11, 13'h0666, HIT);
-    // F3 of the dead word
+    // F4 of the dead word
     curHw = 2'b00; curHit = MISS;
-    @(negedge clk);
+    repeat (2) @(negedge clk);
     #1;
-    if (lookupKill !== 1'b1) fail("B: dead word not killed at F3");
+    if (lookupKill !== 1'b1) fail("B: dead word not killed at F4");
     if (stall      !== 1'b0) fail("B: dead word parked the frontend");
     drain(4);
     if (recCount != 2) fail($sformatf("B: pushed %0d words (expected 2)", recCount));
@@ -178,13 +179,14 @@ module fetch_ctrl_tb;
     if (repCount != 0) fail("B: a dead word triggered a replay");
   endtask
 
-  // ---- C - a miss parks, drops the two words behind it, and replays the missed PC
+  // ---- C - a miss parks, drops the three behind it, and replays the missed PC --
   task automatic checkMissReplay();
     reset();
     present(32'h0000_3000, 2'b11, 13'h0666, MISS);   // this one misses
     present(32'h0000_3004, 2'b11, 13'h0777, HIT);    // already in flight behind it
     present(32'h0000_3008, 2'b11, 13'h0888, HIT);    // already in flight behind it
-    #1;                                              // F3 of 3000: the miss is live
+    @(negedge clk);
+    #1;                                              // F4 of 3000: the miss is live
     if (stall       !== 1'b1) fail("C: miss did not park the frontend");
     if (lookupValid !== 1'b0) fail("C: lookup issued during a miss");
 
@@ -253,7 +255,7 @@ module fetch_ctrl_tb;
     if (recCount != 0)
       fail($sformatf("F: %0d wrong-path words reached the queue", recCount));
     #1;
-    if (lookupKill !== 1'b1) fail("F: wrong-path word not killed at F3");
+    if (lookupKill !== 1'b1) fail("F: wrong-path word not killed at F4");
   endtask
 
   // ---- G - no credit parks the frontend without killing anything ---------------

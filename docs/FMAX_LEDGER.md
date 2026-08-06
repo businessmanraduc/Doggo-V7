@@ -19,12 +19,12 @@ floor / mean / ceiling across the seed sweep.
 | rat | 20 | 100 | 159.46 | 170.88 | 184.54 | 20/20 commit-clear -> pending | 2026-07-19 |
 | btb | 20 | 100 | 143.04 | 144.54 | 145.50 | 18/20 BSRAM read -> entryQ | 2026-08-04 |
 | pht | 20 | 100 | 149.10 | 149.53 | 152.53 | 16/20 BSRAM read -> counter | 2026-08-04 |
+| icache | 20 | 100 | | 167.90 | 178.89 | 192.46 | 15/20 tag comparisson | 2026-08-06 |
 | bpredict | 20 | 100 | 135.63 | 142.51 | 145.50 | 19/20 BTB BSRAM read -> entryQ | 2026-08-04 |
-| icache | 20 | 100 | 161.94 | 170.06 | 177.59 | 16/20 tag LUTRAM read, 2/20 tag compare | 2026-08-04 |
-| linefill | 20 | 100 | 200.08 | 214.66 | 225.63 | 19/20 state -> state, 1/20 sweepCount -> state | 2026-08-03 |
-| fetch_queue | 20 | 100 | 177.24 | 190.63 | 205.34 | 15/20 count -> count, 3/20 push -> count | 2026-08-04 |
+| linefill | 20 | 100 | 191.09 | 213.29 | 232.40 | 14/20 state -> state, 3/20 state -> tagWrTag | 2026-08-06 |
+| fetch_queue | 20 | 100 | 172.86 | 187.08 | 203.33 | 14/20 count -> count, 3/20 flushShadow -> count | 2026-08-06 |
 | align | 20 | 100 | 156.32 | 189.79 | 208.20 | 10/20 half -> out, 8/20 queue -> out | 2026-08-04 |
-| fetch_ctrl | 20 | 100 | 228.73 | 257.85 | 281.37 | 14/20 kill -> valid chain, 3/20 -> missPC | 2026-08-04 |
+| fetch_ctrl | 20 | 100 | 224.01 | 254.46 | 287.94 | 11/20 -> validF1, 8/20 hwF4 -> rState/missPC | 2026-08-06 |
 
 ## Placer timing-weight calibration
 

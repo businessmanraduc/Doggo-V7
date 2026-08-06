@@ -4,16 +4,16 @@
 //  Owns the three things that live between the predictor, cache and fetch
 //  queue which belong to none of them:
 //
-//  Metadata delay - The cache takes an address in F0 and reports in F3. bpredict
-//                   already publishes its metadata one cycle late, so two more
+//  Metadata delay - The cache takes an address in F0 and reports in F4. bpredict
+//                   already publishes its metadata one cycle late, so three more
 //                   stages line the two up.
 //  Kill           - A word is only wanted if it is live and still on the path
 //                   being fetched. Everything else (overrun behind taken
-//                   branch/wrong-path words behind redirect) is killed at F3
+//                   branch/wrong-path words behind redirect) is killed at F4
 //                   so the fill engine never chases it.
 //  Miss Replay    - The fill engine fills the line but never delivers the
 //                   word, so the miss is replayed from here. Clearing the
-//                   valid chain drops the two words already behind the missed
+//                   valid chain drops the three words already behind the missed
 //                   one, which would otherwise reach the queue ahead of it.
 //
 //  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
@@ -57,26 +57,29 @@ module fetch_ctrl #(
 
   assign boot = ~resetn;
 
-  // ---- metadata delay: F1 (from bpredict) to F3 (cache report) -----------------
-  logic                   validF1,  validF2, validF3;
-  logic [31:2]            pcF2,     pcF3;
-  logic [1:0]             hwF2,     hwF3;
-  logic [PHT_INDEX_W-1:0] gsF2, gsF3;
+  // ---- metadata delay: F1 (from bpredict) to F4 (cache report) -----------------
+  logic                   validF1,  validF2, validF3, validF4;
+  logic [31:2]            pcF2,     pcF3,    pcF4;
+  logic [1:0]             hwF2,     hwF3,    hwF4;
+  logic [PHT_INDEX_W-1:0] gsF2,     gsF3,    gsF4;
 
-  logic wantF3;  assign wantF3  = validF3 && (hwF3 != 2'b00);
-  logic missNow; assign missNow = wantF3 && !hit;
+  logic wantF4;  assign wantF4  = validF4 && (hwF4 != 2'b00);
+  logic missNow; assign missNow = wantF4 && !hit;
 
   always_ff @(posedge clk) begin
     if (!resetn || backendRedirect || missNow) begin
-      validF1 <= 1'b0; validF2 <= 1'b0; validF3 <= 1'b0;
+      validF1 <= 1'b0; validF2 <= 1'b0;
+      validF3 <= 1'b0; validF4 <= 1'b0;
     end else begin
       validF1 <= lookupValid;
       validF2 <= validF1;
       validF3 <= validF2;
+      validF4 <= validF3;
     end
 
     pcF2 <= fetchPC; hwF2 <= fetchHwValid; gsF2 <= fetchGshare;
     pcF3 <= pcF2;    hwF3 <= hwF2;         gsF3 <= gsF2;
+    pcF4 <= pcF3;    hwF4 <= hwF3;         gsF4 <= gsF3;
   end
 
   // ---- replay: wait for fill to start, then to finish --------------------------
@@ -94,9 +97,9 @@ module fetch_ctrl #(
       case (rState)
         R_IDLE: if (missNow) begin
           rState <= R_BUSY;
-          missPC <= pcF3;
-          missHw <= hwF3;
-          missGs <= gsF3;
+          missPC <= pcF4;
+          missHw <= hwF4;
+          missGs <= gsF4;
         end
 
         R_BUSY: if (fillBusy) begin
@@ -119,12 +122,12 @@ module fetch_ctrl #(
   // ---- steering ----------------------------------------------------------------
   assign stall       = fillBusy || missNow || !canFetch;
   assign lookupValid = resetn && !stall && !backendRedirect && !replayValid;
-  assign lookupKill  = !wantF3;
+  assign lookupKill  = !wantF4;
 
-  assign pushValid   = wantF3 && hit;
-  assign pushPC      = pcF3;
-  assign pushHwValid = hwF3;
-  assign pushGshare  = gsF3;
+  assign pushValid   = wantF4 && hit;
+  assign pushPC      = pcF4;
+  assign pushHwValid = hwF4;
+  assign pushGshare  = gsF4;
 
 endmodule
 

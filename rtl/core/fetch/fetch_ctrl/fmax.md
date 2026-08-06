@@ -4,29 +4,29 @@ ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 
 | floor | mean | ceil |
 |---|---|---|
-| 228.73 | 257.85 | 281.37 |
+| 224.01 | 254.46 | 287.94 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 256.61 | u_dut.resetn         -> u_dut.validF1 |
-| 2 | 281.37 | u_dut.validF3        -> u_dut.validF3 |
-| 3 | 261.71 | u_dut.hwF3           -> u_dut.validF1 |
-| 4 | 253.68 | u_dut.backendRedirect -> u_dut.validF1 |
-| 5 | 280.98 | u_dut.hwF3           -> u_dut.missPC |
-| 6 | 259.34 | u_dut.validF3        -> u_dut.validF1 |
-| 7 | 273.45 | u_dut.validF3        -> u_dut.validF1 |
-| 8 | 260.21 | u_dut.backendRedirect -> u_dut.validF1 |
-| 9 | 274.12 | u_dut.resetn         -> u_dut.validF1 |
-| 10 | 251.26 | u_dut.backendRedirect -> u_dut.validF1 |
-| 11 | 257.27 | u_dut.validF3        -> u_dut.missPC |
-| 12 | 250.44 | u_dut.validF3        -> u_dut.validF1 |
-| 13 | 235.63 | u_dut.validF3        -> u_dut.validF1 |
-| 14 | 257.20 | u_dut.hwF3           -> u_dut.validF1 |
-| 15 | 252.91 | u_dut.hwF3           -> u_dut.missPC |
-| 16 | 252.59 | u_dut.backendRedirect -> u_dut.rState |
-| 17 | 254.97 | u_dut.hwF3           -> u_dut.validF1 |
-| 18 | 258.06 | u_dut.resetn         -> u_dut.validF1 |
-| 19 | 228.73 | u_dut.resetn         -> u_dut.rState |
-| 20 | 256.54 | u_dut.resetn         -> u_dut.validF1 |
+| 1 | 230.04 | u_dut.resetn         -> u_dut.validF1 |
+| 2 | 277.09 | u_dut.hwF4           -> u_dut.validF1 |
+| 3 | 224.01 | u_dut.hwF4           -> u_dut.validF1 |
+| 4 | 287.94 | u_dut.resetn         -> u_dut.validF1 |
+| 5 | 269.03 | u_dut.backendRedirect -> u_dut.validF1 |
+| 6 | 256.28 | u_dut.resetn         -> u_dut.validF1 |
+| 7 | 254.39 | u_dut.hwF4           -> u_dut.rState |
+| 8 | 271.81 | u_dut.hwF4           -> u_dut.rState |
+| 9 | 268.31 | u_dut.hwF4           -> u_dut.missPC |
+| 10 | 261.51 | u_dut.resetn         -> u_dut.validF1 |
+| 11 | 226.30 | u_dut.backendRedirect -> u_dut.validF1 |
+| 12 | 257.33 | u_dut.backendRedirect -> u_dut.validF1 |
+| 13 | 269.69 | u_dut.hwF4           -> u_dut.rState |
+| 14 | 256.74 | u_dut.resetn         -> u_dut.validF1 |
+| 15 | 242.25 | u_dut.resetn         -> u_dut.rState |
+| 16 | 227.32 | u_dut.hwF4           -> u_dut.rState |
+| 17 | 245.58 | u_dut.backendRedirect -> u_dut.validF1 |
+| 18 | 239.29 | u_dut.hwF4           -> u_dut.missPC |
+| 19 | 266.31 | u_dut.hwF4           -> u_dut.missPC |
+| 20 | 258.06 | u_dut.hwF4           -> u_dut.missPC |

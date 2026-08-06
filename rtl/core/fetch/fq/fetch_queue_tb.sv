@@ -4,7 +4,7 @@
 // ================================================================================
 module fetch_queue_tb;
   localparam int DEPTH   = 16;
-  localparam int LATENCY = 3;
+  localparam int LATENCY = 4;
 
   logic clk = 0;
   always #5 clk = ~clk;

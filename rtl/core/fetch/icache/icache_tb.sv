@@ -57,12 +57,12 @@ module icache_tb;
     end
   end
 
-  // ---- one fetch, verdict three cycles later -----------------------------------
+  // ---- one fetch, verdict four cycles later ------------------------------------
   task automatic fetch(input logic [31:0] a, output logic gotHit,
                        output logic [31:0] word);
     @(negedge clk); lookupAddr = a; lookupValid = 1'b1;
     @(negedge clk); lookupValid = 1'b0;
-    repeat (2) @(negedge clk);
+    repeat (3) @(negedge clk);
     gotHit = hit;
     word   = instrWord;
   endtask
@@ -89,10 +89,10 @@ module icache_tb;
   // ---- power-up garbage, so the boot sweep is actually on trial ----------------
   task automatic poisonTags();
     for (int s = 0; s < 128; s++) begin
-      dut.g_tagWay[0].tagMem[s] = {1'b1, 13'h0};
-      dut.g_tagWay[1].tagMem[s] = {1'b1, 13'h0};
-      dut.g_tagWay[2].tagMem[s] = {1'b1, 13'h0};
-      dut.g_tagWay[3].tagMem[s] = {1'b1, 13'h0};
+      dut.g_tagWay[0].u_tagBlk.mem[s] = {4'b0, 1'b1, 13'h0};
+      dut.g_tagWay[1].u_tagBlk.mem[s] = {4'b0, 1'b1, 13'h0};
+      dut.g_tagWay[2].u_tagBlk.mem[s] = {4'b0, 1'b1, 13'h0};
+      dut.g_tagWay[3].u_tagBlk.mem[s] = {4'b0, 1'b1, 13'h0};
     end
   endtask
 
@@ -135,7 +135,7 @@ module icache_tb;
     $finish;
   end
 
-  // ---- a lookup the front end disowns at F3 must not start a fill --------------
+  // ---- a lookup the front end disowns at F4 must not start a fill --------------
   task automatic checkKilledMissNeverFills();
     int fillsBefore;
 
@@ -144,7 +144,7 @@ module icache_tb;
     // a cold address, but killed on the cycle its verdict lands
     @(negedge clk); lookupAddr = 32'h0002_4000; lookupValid = 1'b1;
     @(negedge clk); lookupValid = 1'b0;
-    repeat (2) @(negedge clk);
+    repeat (3) @(negedge clk);
     lookupKill = 1'b1;
     @(negedge clk);
     lookupKill = 1'b0;
@@ -237,13 +237,13 @@ module icache_tb;
     end
   endtask
 
-  // ---- consecutive addresses, one word per cycle, offset by the 3-cycle pipe ---
+  // ---- consecutive addresses, one word per cycle, offset by the 4-cycle pipe ---
   task automatic checkStreaming(input logic [31:0] base);
     int idx;
-    for (int k = 0; k < 8 + 3; k++) begin
+    for (int k = 0; k < 8 + 4; k++) begin
       @(negedge clk);
-      if (k >= 3) begin
-        idx = k - 3;
+      if (k >= 4) begin
+        idx = k - 4;
         if (hit !== 1'b1 || instrWord !== base + 32'(idx * 4)) begin
           $error("stream word %0d: hit=%b word=%h (expected %h)",
                  idx, hit, instrWord, base + 32'(idx * 4)); errors++;
