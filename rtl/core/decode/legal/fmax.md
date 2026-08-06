@@ -4,29 +4,29 @@ ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 
 | floor | mean | ceil |
 |---|---|---|
-| 165.76 | 186.22 | 194.06 |
+| 173.43 | 191.99 | 198.06 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 182.48 | u_src.r              -> u_sink.dq |
-| 2 | 177.53 | u_src.r              -> u_sink.dq |
-| 3 | 186.08 | u_src.r              -> u_sink.dq |
+| 1 | 196.31 | u_src.r              -> u_sink.dq |
+| 2 | 185.80 | u_src.r              -> u_sink.dq |
+| 3 | 193.05 | u_src.r              -> u_sink.dq |
 | 4 | 193.16 | u_src.r              -> u_sink.dq |
-| 5 | 190.40 | u_src.r              -> u_sink.dq |
-| 6 | 186.67 | u_src.r              -> u_sink.dq |
-| 7 | 190.80 | u_src.r              -> u_sink.dq |
-| 8 | 192.72 | u_src.r              -> u_sink.dq |
-| 9 | 194.06 | u_src.r              -> u_sink.dq |
-| 10 | 191.06 | u_src.r              -> u_sink.dq |
-| 11 | 177.05 | u_src.r              -> u_sink.dq |
-| 12 | 185.74 | u_src.r              -> u_sink.dq |
-| 13 | 182.38 | u_src.r              -> u_sink.dq |
-| 14 | 190.19 | u_src.r              -> u_sink.dq |
-| 15 | 185.70 | u_src.r              -> u_sink.dq |
-| 16 | 188.57 | u_src.r              -> u_sink.dq |
-| 17 | 186.57 | u_src.r              -> u_sink.dq |
-| 18 | 193.61 | u_src.r              -> u_sink.dq |
-| 19 | 165.76 | u_src.r              -> u_sink.dq |
-| 20 | 183.86 | u_src.r              -> u_sink.dq |
+| 5 | 198.06 | u_src.r              -> u_sink.dq |
+| 6 | 194.74 | u_src.r              -> u_sink.dq |
+| 7 | 197.01 | u_src.r              -> u_sink.dq |
+| 8 | 192.60 | u_src.r              -> u_sink.dq |
+| 9 | 195.73 | u_src.r              -> u_sink.dq |
+| 10 | 192.72 | u_src.r              -> u_sink.dq |
+| 11 | 192.86 | u_src.r              -> u_sink.dq |
+| 12 | 190.26 | u_src.r              -> u_sink.dq |
+| 13 | 187.69 | u_src.r              -> u_sink.dq |
+| 14 | 196.77 | u_src.r              -> u_sink.dq |
+| 15 | 192.72 | u_src.r              -> u_sink.dq |
+| 16 | 191.86 | u_src.r              -> u_sink.dq |
+| 17 | 192.72 | u_src.r              -> u_sink.dq |
+| 18 | 197.67 | u_src.r              -> u_sink.dq |
+| 19 | 173.43 | u_src.r              -> u_sink.dq |
+| 20 | 184.71 | u_src.r              -> u_sink.dq |

@@ -2,6 +2,11 @@
 # ============================================================================
 #  sweep.sh  --  N-seed nextpnr sweep -> floor/mean/ceil + per-seed census
 #  args: MOD JSON LPF TOP SEEDS TW OUT [JOBS]
+#
+#  --tmg-ripup is on: it pays in proportion to how routing-bound the module is.
+#  Every ledger row is measured with it, so do not drop it for one module.
+#  --router router2 would need critpath.py fixed first: it reports its final
+#  Fmax on a Warning: line, which the parser skips, and the sweep records 0.00.
 # ============================================================================
 set -euo pipefail
 mod=$1
@@ -21,7 +26,7 @@ seq 1 "$seeds" | xargs -P "$jobs" -I{} bash -c '
   s=$1; logdir=$2; json=$3; lpf=$4; tw=$5
   log="$logdir/s$s.log"
   nextpnr-ecp5 --85k --package CABGA381 --json "$json" --lpf "$lpf" \
-    --seed "$s" --placer-heap-timingweight "$tw" --timing-allow-fail \
+    --seed "$s" --placer-heap-timingweight "$tw" --tmg-ripup --timing-allow-fail \
     --textcfg /dev/null >"$log" 2>&1 || true
   brief=$(python3 flow/critpath.py "$log" --brief 2>/dev/null || echo "  0.00 MHz  ? -> ?")
   printf "%s\t%s\n" "$s" "$brief"
