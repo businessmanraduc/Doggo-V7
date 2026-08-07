@@ -3,16 +3,17 @@
 // ================================================================================
 //  16 KB, 4 ways, 32-byte lines. Serves one 32-bit word per lookup, one word
 //  per cycle, four-cycle pipelined hit.
-//  Tags and data lives in BSRAM, replacement state lives in LUTRAM.
+//  Tags, data and replacement state all live in BSRAM.
 //
 //    byte addr | tag[24:12] | set[11:5] | word-in-line[4:2] | hw[1] | b[0]
 //
 //  Stage map (address presented in F0):
 //    F0 - split the address, arm the tag blocks and the PLRU
-//    F1 - reads in flight, arm the data blocks
+//    F1 - tag and PLRU reads in flight, arm the data blocks
 //    F2 - tag entries land and are parked, verdict and victim land
 //    F3 - tag compare, both inputs registered, words land
-//    F4 - pick way, report, touch PLRU, hand miss to fill engine
+//    F4 - pick way, report, touch PLRU, register the miss
+//    F5 - miss reaches the fill engine (hit path unaffected, still 4 cycles).
 //
 //  A lookup can be disowned at F4 with lookupKill, so a word the frontend no
 //  longer wants (wrong path/dead word behind taken branch) never starts a fill.
@@ -46,6 +47,7 @@ module icache #(
   localparam int WAYS    = 4;
   localparam int OFF_W   = WIL_W + 2;
   localparam int ENTRY_W = TAG_W + 1;
+  localparam int PLRU_W  = 3;
 
   genvar way, blk;
 
@@ -59,7 +61,11 @@ module icache #(
   logic [31:0]          dataWrWord;
   logic                 initDone;
 
-  // ---- fetch qualifier, carried F0 to F3 ---------------------------------------
+  // ---- PLRU write port, formed in F4 -------------------------------------------
+  logic [PLRU_W-1:0]    touchNext;
+  logic [SET_IDX_W-1:0] lookupSetF4;
+
+  // ---- fetch qualifier, carried F0 to F4 ---------------------------------------
   logic lookupValidF1, lookupValidF2, lookupValidF3, lookupValidF4;
   always_ff @(posedge clk) begin
     if (!resetn) begin
@@ -86,7 +92,7 @@ module icache #(
     lookupTagF1       <= lookupTag;
   end
 
-  // ---- F1 - reads in flight + memory initialization ----------------------------
+  // ---- F1 - tag and PLRU reads in flight ---------------------------------------
   logic [ENTRY_W-1:0] tagEntry [0:WAYS-1];
   generate
     for (way = 0; way < WAYS; way++) begin : g_tagWay
@@ -100,6 +106,16 @@ module icache #(
     end
   endgenerate
 
+  logic [17:0]       plruRaw;
+  logic [PLRU_W-1:0] lookupState;
+  ebr18 #(.OUT_REG(1'b1), .ADDR_W(SET_IDX_W)) u_plruBlk (
+    .clk,                 .wrEnable(hit),
+    .wrAddr(lookupSetF4), .wrData({{(18-PLRU_W){1'b0}}, touchNext}),
+    .rdAddr(lookupSet),   .readEnable(1'b1), .rdData(plruRaw)
+  );
+  assign lookupState = plruRaw[PLRU_W-1:0];
+
+  // ---- F1 - arm the data blocks ------------------------------------------------
   logic [35:0] wrWide; assign wrWide = {4'b0, dataWrWord};
   logic [31:0] readWord [0:WAYS-1];
   generate
@@ -116,9 +132,6 @@ module icache #(
     end
   endgenerate
 
-  (* ram_style = "distributed" *) logic [2:0] plruMem [0:(1<<SET_IDX_W)-1];
-  logic [2:0] lookupState; always_ff @(posedge clk) lookupState <= plruMem[lookupSetF1];
-
   logic [SET_IDX_W-1:0] lookupSetF2;
   logic [TAG_W-1:0]     lookupTagF2;
   always_ff @(posedge clk) begin
@@ -128,7 +141,7 @@ module icache #(
 
   // ---- F2 - park the tag read --------------------------------------------------
   logic [ENTRY_W-1:0] tagEntryF3 [0:WAYS-1];
-  logic [2:0]         touchStateF3;
+  logic [PLRU_W-1:0]  touchStateF3;
   always_ff @(posedge clk) touchStateF3 <= lookupState;
   generate
     for (way = 0; way < WAYS; way++) begin : g_park
@@ -161,9 +174,8 @@ module icache #(
 
   logic [WAYS-1:0]      hitVecF4;
   logic [31:0]          heldWords [0:WAYS-1];
-  logic [2:0]           touchState;
+  logic [PLRU_W-1:0]    touchState;
   logic [1:0]           victimWay;
-  logic [SET_IDX_W-1:0] lookupSetF4;
   logic [TAG_W-1:0]     lookupTagF4;
   always_ff @(posedge clk) begin
     hitVecF4    <= matchVec;
@@ -193,15 +205,24 @@ module icache #(
   end
 
   // ---- F4 - aim PLRU tree away from recently used way --------------------------
-  logic [2:0] touchNext;
   always_comb begin
     touchNext    = touchState;
     touchNext[0] = ~hitWay[1];
     if (hitWay[1]) touchNext[2] = ~hitWay[0];
     else           touchNext[1] = ~hitWay[0];
   end
+
+  // ---- F5 - hand the miss over to fill engine ----------------------------------
+  logic                 missValidF5;
+  logic [TAG_W-1:0]     missTagF5;
+  logic [SET_IDX_W-1:0] missSetF5;
+  logic [1:0]           missVictimF5;
   always_ff @(posedge clk) begin
-    if (hit) plruMem[lookupSetF4] <= touchNext;
+    if (!resetn) missValidF5 <= 1'b0;
+    else         missValidF5 <= lookupValidF4 && !hit && !lookupKill;
+    missTagF5    <= lookupTagF4;
+    missSetF5    <= lookupSetF4;
+    missVictimF5 <= victimWay;
   end
 
   // ---- fill engine -------------------------------------------------------------
@@ -209,8 +230,8 @@ module icache #(
     .SET_IDX_W(SET_IDX_W), .WIL_W(WIL_W), .TAG_W(TAG_W), .WORDIDX_W(WORDIDX_W)
   ) u_fill (
     .clk, .resetn,
-    .missValid (lookupValidF4 && !hit && !lookupKill),
-    .missTag(lookupTagF4), .missSet(lookupSetF4), .missVictim(victimWay),
+    .missValid(missValidF5),
+    .missTag(missTagF5), .missSet(missSetF5), .missVictim(missVictimF5),
     .fillAddr, .fillReq, .fillRData, .fillRValid,
     .dataWrEnable, .dataWrIndex, .dataWrWord,
     .tagWrEnable, .tagWrSet, .tagWrTag, .tagWrValid,

@@ -74,6 +74,13 @@ module linefill #(
   logic [SET_IDX_W-1:0] fillSet;
   logic [1:0]           fillWay;
 
+  // ---- sweep terminal, raised one cycle early ----------------------------------
+  logic sweepLast;
+  always_ff @(posedge clk) begin
+    if (!resetn) sweepLast <= 1'b0;
+    else         sweepLast <= (sweepCount == SET_IDX_W'(SETS-2));
+  end
+
   // ---- sequencer ---------------------------------------------------------------
   always_ff @(posedge clk) begin
     if (!resetn) begin
@@ -86,7 +93,7 @@ module linefill #(
       case (state)
         S_SWEEP: begin
           sweepCount <= sweepCount + 1'b1;
-          if (sweepCount == SET_IDX_W'(SETS-1)) begin
+          if (sweepLast) begin
             settleCount <= '0;
             state       <= S_SETTLE;
           end

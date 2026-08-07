@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# ============================================================================
+# =================================================================================
 #  sweep.sh  --  N-seed nextpnr sweep -> floor/mean/ceil + per-seed census
-#  args: MOD JSON LPF TOP SEEDS TW OUT [JOBS]
+#  args: MOD JSON LPF TOP SEEDS TW OUT [JOBS] [PNRFLAGS]
 #
 #  --tmg-ripup is on: it pays in proportion to how routing-bound the module is.
 #  Every ledger row is measured with it, so do not drop it for one module.
-#  --router router2 would need critpath.py fixed first: it reports its final
-#  Fmax on a Warning: line, which the parser skips, and the sweep records 0.00.
-# ============================================================================
+# =================================================================================
 set -euo pipefail
 mod=$1
 json=$2
@@ -17,20 +15,21 @@ seeds=$5
 tw=$6
 out=$7
 jobs=${8:-1}
+pnrflags=${9:-}
 logdir=$(dirname "$json")
 res="$logdir/results.tsv"
 
 echo "  sweeping $seeds seeds at tw=$tw, $jobs at a time"
 
 seq 1 "$seeds" | xargs -P "$jobs" -I{} bash -c '
-  s=$1; logdir=$2; json=$3; lpf=$4; tw=$5
+  s=$1; logdir=$2; json=$3; lpf=$4; tw=$5 pnrflags=$6
   log="$logdir/s$s.log"
   nextpnr-ecp5 --85k --package CABGA381 --json "$json" --lpf "$lpf" \
     --seed "$s" --placer-heap-timingweight "$tw" --tmg-ripup --timing-allow-fail \
-    --textcfg /dev/null >"$log" 2>&1 || true
+    $pnrflags --textcfg /dev/null >"$log" 2>&1 || true
   brief=$(python3 flow/critpath.py "$log" --brief 2>/dev/null || echo "  0.00 MHz  ? -> ?")
   printf "%s\t%s\n" "$s" "$brief"
-' _ {} "$logdir" "$json" "$lpf" "$tw" >"$res"
+' _ {} "$logdir" "$json" "$lpf" "$tw" "$pnrflags" >"$res"
 
 sort -n -o "$res" "$res"
 
