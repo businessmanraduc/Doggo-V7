@@ -17,16 +17,17 @@ floor / mean / ceiling across the seed sweep.
 | decoder | 20 | 100 | 172.95 | 185.91 | 199.24 | nwl | 18/20 instr -> uop, 2/20 pc -> uop | 2026-08-07 |
 | regfile | 20 | 100 | 253.94 | 276.98 | 287.44 | - | 19/20 index -> read data | 2026-08-06 |
 | rat | 20 | 100 | 167.08 | 175.18 | 190.01 | - | 20/20 commit-clear -> pending | 2026-08-06 |
-| btb | 20 | 100 | 141.92 | 144.49 | 145.50 | - | 18/20 BSRAM read -> entryQ | 2026-08-06 |
-| pht | 20 | 100 | 149.10 | 149.53 | 152.53 | - | 16/20 BSRAM read -> counter | 2026-08-06 |
 | icache | 20 | 100 | 195.08 | 206.12 | 217.01 | nwl | 7/20 hitVecF4 -> sink, 3/20 fill state -> data array | 2026-08-07 |
-| bpredict | 20 | 100 | 135.78 | 142.75 | 145.41 | - | 20/20 BTB BSRAM read -> entryQ | 2026-08-06 |
+| bpredict | 20 | 100 | 149.99 | 172.03 | 183.32 | - | 4/20 ftq readPtr loop, rest rig-driven redirect/reset | 2026-08-11 |
+| ras | 20 | 100 | 191.17 | 209.62 | 235.40 | - | 19/20 rig-driven pushAddr -> top, 1/20 ptr -> top | 2026-08-10 |
+| ftq | 20 | 100 | 185.15 | 196.75 | 211.15 | - | 20/20 rig-driven push_validB -> word counters | 2026-08-10 |
+| btb | 20 | 100 | 187.83 | 201.45 | 213.54 | - | 20/20 BSRAM out -> sink; ceil above the 211.9 BSRAM cap | 2026-08-10 |
+| pht | 20 | 100 | 362.98 | 400.61 | 447.43 | - | fabric slack only, the whole range is above the 211.9 BSRAM cap | 2026-08-10 |
 | linefill | 20 | 100 | 192.75 | 216.58 | 228.41 | - | 9/20 state -> settleCount, 8/20 state -> state | 2026-08-07 |
-| fetch_queue | 20 | 100 | 172.27 | 191.17 | 208.64 | - | 12/20 count -> count, 4/20 push -> count | 2026-08-06 |
-| align | 20 | 100 | 193.50 | 210.39 | 232.45 | nwl | 11/20 half -> out, 8/20 queue -> out | 2026-08-07 |
-| fetch_ctrl | 20 | 100 | 244.74 | 262.29 | 296.21 | nwl | 5/20 resetn -> validF1, 5/20 validF4 -> validF1 | 2026-08-07 |
-| fetch_engine | 20 | 100 | 127.96 | 135.15 | 141.72 | nwl | 15/20 fq head -> count, 2/20 icache hitVec -> validF1 | 2026-08-07 |
-
+| fetch_queue | 20 | 100 | 171.82 | 188.09 | 204.75 | - | 13/20 count -> count, 5/20 flushShadow -> count | 2026-08-11 |
+| align | 20 | 100 | 193.80 | 214.02 | 236.91 | nwl | 12/20 half -> sink, 8/20 rig ctl -> sink | 2026-08-11 |
+| fetch_ctrl | - | - | - | - | - | - | STALE: metadata delay and miss replay both move into the FTQ | 2026-08-11 |
+| fetch_engine | - | - | - | - | - | - | STALE: being rewritten around the FTQ, no predictor inside it | 2026-08-11 |
 ## Fmax observations
 
 `fetch_engine` is a COMPOSITE row: one flag covers every module inside it, so its
