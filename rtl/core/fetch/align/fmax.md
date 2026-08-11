@@ -4,29 +4,29 @@ ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 
 | floor | mean | ceil |
 |---|---|---|
-| 193.50 | 210.39 | 232.45 |
+| 193.80 | 214.02 | 236.91 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 208.51 | u_dut.half           -> u_sink.dq |
-| 2 | 196.19 | u_srcC.r             -> u_sink.dq |
-| 3 | 193.50 | u_dut.half           -> u_sink.dq |
-| 4 | 232.45 | u_srcC.r             -> u_dut.half |
-| 5 | 208.77 | u_dut.half           -> u_sink.dq |
-| 6 | 226.30 | u_dut.half           -> u_sink.dq |
-| 7 | 231.48 | u_srcC.r             -> u_sink.dq |
-| 8 | 198.73 | u_dut.half           -> u_sink.dq |
-| 9 | 217.16 | u_srcC.r             -> u_sink.dq |
-| 10 | 230.36 | u_dut.half           -> u_sink.dq |
-| 11 | 209.47 | u_dut.half           -> u_sink.dq |
-| 12 | 210.97 | u_srcC.r             -> u_sink.dq |
-| 13 | 203.25 | u_dut.half           -> u_sink.dq |
-| 14 | 217.20 | u_dut.half           -> u_sink.dq |
-| 15 | 199.84 | u_srcC.r             -> u_sink.dq |
-| 16 | 207.43 | u_dut.half           -> u_sink.dq |
-| 17 | 194.55 | u_dut.half           -> u_sink.dq |
-| 18 | 214.13 | u_srcC.r             -> u_sink.dq |
-| 19 | 209.91 | u_srcC.r             -> u_sink.dq |
-| 20 | 197.63 | u_srcC.r             -> u_sink.dq |
+| 1 | 206.06 | u_srcC.r             -> u_sink.dq |
+| 2 | 217.96 | u_dut.half           -> u_sink.dq |
+| 3 | 218.53 | u_srcC.r             -> u_sink.dq |
+| 4 | 203.09 | u_srcC.r             -> u_sink.dq |
+| 5 | 222.17 | u_srcC.r             -> u_sink.dq |
+| 6 | 213.45 | u_srcC.r             -> u_dut.half |
+| 7 | 193.80 | u_dut.half           -> u_sink.dq |
+| 8 | 220.07 | u_srcC.r             -> u_sink.dq |
+| 9 | 201.61 | u_dut.half           -> u_sink.dq |
+| 10 | 216.03 | u_srcC.r             -> u_sink.dq |
+| 11 | 198.18 | u_dut.half           -> u_sink.dq |
+| 12 | 236.91 | u_srcC.r             -> u_dut.half |
+| 13 | 229.99 | u_dut.half           -> u_sink.dq |
+| 14 | 224.42 | u_dut.half           -> u_dut.half |
+| 15 | 220.31 | u_srcC.r             -> u_sink.dq |
+| 16 | 206.74 | u_dut.half           -> u_sink.dq |
+| 17 | 215.24 | u_srcC.r             -> u_dut.half |
+| 18 | 210.61 | u_srcC.r             -> u_sink.dq |
+| 19 | 209.95 | u_dut.half           -> u_sink.dq |
+| 20 | 215.19 | u_dut.half           -> u_sink.dq |

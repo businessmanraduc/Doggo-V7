@@ -30,6 +30,7 @@ module align (
   input  logic [31:2] fq_pcA,
   input  logic [1:0]  fq_hwValidA,
   input  logic [12:0] fq_gshareA,
+  input  logic [2:0]  fq_rasPtrA,
   input  logic [31:0] fq_wordA,
   input  logic        fq_validB,
   input  logic [1:0]  fq_hwValidB,
@@ -42,6 +43,7 @@ module align (
   output logic [31:0] out_instr,
   output logic        out_isCompressed,
   output logic [12:0] out_gshare,
+  output logic [2:0]  out_rasPtr,
   input  logic        out_ready
 );
 
@@ -79,6 +81,7 @@ module align (
 
   // ---- forwarding the predictor's PHT index ------------------------------------
   assign out_gshare = fq_gshareA;
+  assign out_rasPtr = fq_rasPtrA;
 
 endmodule
 

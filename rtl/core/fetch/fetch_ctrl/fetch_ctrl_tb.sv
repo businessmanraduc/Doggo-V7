@@ -1,7 +1,7 @@
 // ================================================================================
 //  fetch_ctrl_tb -- models the pipeline around the control block rather than
 //  hand-counting it: one present() call is one F0 cycle, and the harness delivers
-//  that word's metadata at F1 and its cache verdict at F4 by itself. A word is
+//  that word's metadata at F2 and its cache verdict at F4 by itself. A word is
 //  only consumed when the block actually issues a lookup, so parks need no
 //  special handling.
 // ================================================================================
@@ -16,23 +16,27 @@ module fetch_ctrl_tb;
   logic [31:2]       fetchPC;
   logic [1:0]        fetchHwValid;
   logic [PHT_W-1:0]  fetchGshare;
+  logic [2:0]        fetchRasPtr;
   logic              hit, fillBusy, canFetch, backendRedirect;
   logic              boot, stall, lookupValid, lookupKill, replayValid;
   logic [31:0]       replayPC;
   logic [PHT_W-1:0]  replayBHR;
+  logic [2:0]        replayRasPtr;
   logic              pushValid;
   logic [31:2]       pushPC;
   logic [1:0]        pushHwValid;
   logic [PHT_W-1:0]  pushGshare;
+  logic [2:0]        pushRasPtr;
 
   int errors = 0;
 
   fetch_ctrl #(.PHT_INDEX_W(PHT_W)) dut (
     .clk, .resetn,
-    .fetchPC, .fetchHwValid, .fetchGshare,
+    .fetchPC, .fetchHwValid, .fetchGshare, .fetchRasPtr,
     .hit, .fillBusy, .canFetch, .backendRedirect,
-    .boot, .stall, .lookupValid, .lookupKill, .replayValid, .replayPC, .replayBHR,
-    .pushValid, .pushPC, .pushHwValid, .pushGshare
+    .boot, .stall, .lookupValid, .lookupKill,
+    .replayValid, .replayPC, .replayBHR, .replayRasPtr,
+    .pushValid, .pushPC, .pushHwValid, .pushGshare, .pushRasPtr
   );
 
   initial begin
@@ -48,17 +52,27 @@ module fetch_ctrl_tb;
   logic [31:0]      curPC;
   logic [1:0]       curHw;
   logic [PHT_W-1:0] curGs;
+  logic [2:0]       curRp;
   logic             curHit;
 
-  // metadata lands one cycle behind its lookup, the cache verdict three
+  // metadata lands two cycles behind its lookup, the cache verdict four
+  logic [31:2]      pcF1;
+  logic [1:0]       hwF1;
+  logic [PHT_W-1:0] gsF1;
+  logic [2:0]       rpF1;
   logic hitF1, hitF2, hitF3;
   always_ff @(posedge clk) begin
     if (lookupValid) begin
-      fetchPC      <= curPC[31:2];
-      fetchHwValid <= curHw;
-      fetchGshare  <= curGs;
-      hitF1        <= curHit;
+      pcF1  <= curPC[31:2];
+      hwF1  <= curHw;
+      gsF1  <= curGs;
+      rpF1  <= curRp;
+      hitF1 <= curHit;
     end
+    fetchPC      <= pcF1;
+    fetchHwValid <= hwF1;
+    fetchGshare  <= gsF1;
+    fetchRasPtr  <= rpF1;
     hitF2 <= hitF1;
     hitF3 <= hitF2;
     hit   <= hitF3;
@@ -91,6 +105,7 @@ module fetch_ctrl_tb;
   // ---- recorded replays --------------------------------------------------------
   logic [31:0]      repPC [0:7];
   logic [PHT_W-1:0] repBHR[0:7];
+  logic [2:0]       repRp [0:7];
   int               repCount;
 
   always @(posedge clk) begin
@@ -103,14 +118,16 @@ module fetch_ctrl_tb;
     if (resetn && replayValid && repCount < 8) begin
       repPC [repCount] <= replayPC;
       repBHR[repCount] <= replayBHR;
+      repRp [repCount] <= replayRasPtr;
       repCount         <= repCount + 1;
     end
   end
 
   // ---- one F0 cycle ------------------------------------------------------------
   task automatic present(input logic [31:0] pc, input logic [1:0] hw,
-                         input logic [PHT_W-1:0] gs, input logic h);
-    curPC = pc; curHw = hw; curGs = gs; curHit = h;
+                         input logic [PHT_W-1:0] gs, input logic h,
+                         input logic [2:0] rp = 3'd0);
+    curPC = pc; curHw = hw; curGs = gs; curHit = h; curRp = rp;
     @(negedge clk);
   endtask
 
@@ -124,8 +141,9 @@ module fetch_ctrl_tb;
 
   task automatic reset();
     resetn = 1'b0; fillBusy = 1'b1; canFetch = 1'b1; backendRedirect = 1'b0;
-    curPC = '0; curHw = 2'b00; curGs = '0; curHit = MISS;
-    fetchPC = '0; fetchHwValid = 2'b00; fetchGshare = '0;
+    curPC = '0; curHw = 2'b00; curGs = '0; curHit = MISS; curRp = 3'd0;
+    fetchPC = '0; fetchHwValid = 2'b00; fetchGshare = '0; fetchRasPtr = 3'd0;
+    pcF1 = '0; hwF1 = 2'b00; gsF1 = '0; rpF1 = 3'd0;
     hit = 1'b0; hitF1 = 1'b0; hitF2 = 1'b0; hitF3 = 1'b0;
     recCount = 0; repCount = 0;
     repeat (3) @(negedge clk);
@@ -182,9 +200,9 @@ module fetch_ctrl_tb;
   // ---- C - a miss parks, drops the three behind it, and replays the missed PC --
   task automatic checkMissReplay();
     reset();
-    present(32'h0000_3000, 2'b11, 13'h0666, MISS);   // this one misses
-    present(32'h0000_3004, 2'b11, 13'h0777, HIT);    // already in flight behind it
-    present(32'h0000_3008, 2'b11, 13'h0888, HIT);    // already in flight behind it
+    present(32'h0000_3000, 2'b11, 13'h0666, MISS, 3'd5);  // this one misses
+    present(32'h0000_3004, 2'b11, 13'h0777, HIT,  3'd6);  // in flight behind it
+    present(32'h0000_3008, 2'b11, 13'h0888, HIT,  3'd7);  // in flight behind it
     @(negedge clk);
     #1;                                              // F4 of 3000: the miss is live
     if (stall       !== 1'b1) fail("C: miss did not park the frontend");
@@ -205,6 +223,8 @@ module fetch_ctrl_tb;
       if (repBHR[0] !== (13'h0666 ^ 13'(32'h0000_3000 >> 2)))
         fail($sformatf("C: replayBHR=%h (expected %h)", repBHR[0],
                        13'h0666 ^ 13'(32'h0000_3000 >> 2)));
+      if (repRp[0] !== 3'd5)
+        fail($sformatf("C: replayRasPtr=%0d (expected 5)", repRp[0]));
     end
   endtask
 

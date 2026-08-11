@@ -22,6 +22,7 @@ module fetch_queue_ring (
   logic [31:2] popPcA, popPcB;
   logic [1:0]  popHwA, popHwB;
   logic [12:0] popGsA;
+  logic [2:0]  popRasA;
   logic [31:0] popWordA, popWordB;
 
   fetch_queue u_dut (
@@ -32,6 +33,7 @@ module fetch_queue_ring (
     .push_valid   (ctl[5]),
     .push_pc      (pc[31:2]),
     .push_hwValid (ctl[3:2]),
+    .push_rasPtr  (pc[17:15]),
     .push_gshare  (pc[14:2]),
     .push_word    (word),
 
@@ -39,6 +41,7 @@ module fetch_queue_ring (
 
     .pop_validA   (popValidA),
     .pop_pcA      (popPcA),
+    .pop_rasPtrA  (popRasA),
     .pop_hwValidA (popHwA),
     .pop_gshareA  (popGsA),
     .pop_wordA    (popWordA),
@@ -49,10 +52,11 @@ module fetch_queue_ring (
     .pop_take     (ctl[1:0])
   );
 
-  xor_sink #(.W(144)) u_sink (
+  xor_sink #(.W(147)) u_sink (
     .clk,
     .d({canFetch, popValidA, popPcA, popHwA, popWordA,
-        popGsA,   popValidB, popPcB, popHwB, popWordB}),
+        popGsA,   popValidB, popPcB, popHwB, popWordB,
+        popRasA}),
     .q(q)
   );
 

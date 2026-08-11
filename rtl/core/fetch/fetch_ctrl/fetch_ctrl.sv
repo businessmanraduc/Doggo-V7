@@ -5,7 +5,7 @@
 //  queue which belong to none of them:
 //
 //  Metadata delay - The cache takes an address in F0 and reports in F4. bpredict
-//                   already publishes its metadata one cycle late, so three more
+//                   already publishes its metadata two cycles late, so two more
 //                   stages line the two up.
 //  Kill           - A word is only wanted if it is live and still on the path
 //                   being fetched. Everything else (overrun behind taken
@@ -19,15 +19,17 @@
 //  Solo Fmax (ring-of-regs, nextpnr --85k, tw=100, 20 seeds): see fmax.md
 // ================================================================================
 module fetch_ctrl #(
-  parameter int PHT_INDEX_W = 13
+  parameter int PHT_INDEX_W = 13,
+  parameter int RAS_PTR_W   = 3
 ) (
   input  logic                   clk,
   input  logic                   resetn,
 
-  // ---- bpredict: metadata for the word issued one cycle ago --------------------
+  // ---- bpredict: metadata for the word issued two cycle ago --------------------
   input  logic [31:2]            fetchPC,
   input  logic [1:0]             fetchHwValid,
   input  logic [PHT_INDEX_W-1:0] fetchGshare,
+  input  logic [RAS_PTR_W-1:0]   fetchRasPtr,
 
   // ---- icache ------------------------------------------------------------------
   input  logic                   hit,
@@ -47,21 +49,24 @@ module fetch_ctrl #(
   output logic                   replayValid,
   output logic [31:0]            replayPC,
   output logic [PHT_INDEX_W-1:0] replayBHR,
+  output logic [RAS_PTR_W-1:0]   replayRasPtr,
 
   // ---- fetch queue push --------------------------------------------------------
   output logic                   pushValid,
   output logic [31:2]            pushPC,
   output logic [1:0]             pushHwValid,
-  output logic [PHT_INDEX_W-1:0] pushGshare
+  output logic [PHT_INDEX_W-1:0] pushGshare,
+  output logic [RAS_PTR_W-1:0]   pushRasPtr
 );
 
   assign boot = ~resetn;
 
-  // ---- metadata delay: F1 (from bpredict) to F4 (cache report) -----------------
+  // ---- metadata delay: F2 (from bpredict) to F4 (cache report) -----------------
   logic                   validF1,  validF2, validF3, validF4;
-  logic [31:2]            pcF2,     pcF3,    pcF4;
-  logic [1:0]             hwF2,     hwF3,    hwF4;
-  logic [PHT_INDEX_W-1:0] gsF2,     gsF3,    gsF4;
+  logic [31:2]            pcF3,    pcF4;
+  logic [1:0]             hwF3,    hwF4;
+  logic [PHT_INDEX_W-1:0] gsF3,    gsF4;
+  logic [RAS_PTR_W-1:0]   rpF3,    rpF4;
 
   logic wantF4;  assign wantF4  = validF4 && (hwF4 != 2'b00);
   logic missNow; assign missNow = wantF4 && !hit;
@@ -77,9 +82,8 @@ module fetch_ctrl #(
       validF4 <= validF3;
     end
 
-    pcF2 <= fetchPC; hwF2 <= fetchHwValid; gsF2 <= fetchGshare;
-    pcF3 <= pcF2;    hwF3 <= hwF2;         gsF3 <= gsF2;
-    pcF4 <= pcF3;    hwF4 <= hwF3;         gsF4 <= gsF3;
+    pcF3 <= fetchPC; hwF3 <= fetchHwValid; gsF3 <= fetchGshare; rpF3 <= fetchRasPtr;
+    pcF4 <= pcF3;    hwF4 <= hwF3;         gsF4 <= gsF3;        rpF4 <= rpF3;
   end
 
   // ---- replay: wait for fill to start, then to finish --------------------------
@@ -89,6 +93,7 @@ module fetch_ctrl #(
   logic [31:2]            missPC;
   logic [1:0]             missHw;
   logic [PHT_INDEX_W-1:0] missGs;
+  logic [RAS_PTR_W-1:0]   missRp;
 
   always_ff @(posedge clk) begin
     if (!resetn || backendRedirect) begin
@@ -100,6 +105,7 @@ module fetch_ctrl #(
           missPC <= pcF4;
           missHw <= hwF4;
           missGs <= gsF4;
+          missRp <= rpF4;
         end
 
         R_BUSY: if (fillBusy) begin
@@ -115,9 +121,10 @@ module fetch_ctrl #(
     end
   end
 
-  assign replayValid = (rState == R_DONE) && !fillBusy && !backendRedirect;
-  assign replayPC    = {missPC, ~missHw[0], 1'b0};
-  assign replayBHR   = missGs ^ missPC[PHT_INDEX_W+1:2];
+  assign replayValid  = (rState == R_DONE) && !fillBusy && !backendRedirect;
+  assign replayPC     = {missPC, ~missHw[0], 1'b0};
+  assign replayBHR    = missGs ^ missPC[PHT_INDEX_W+1:2];
+  assign replayRasPtr = missRp;
 
   // ---- steering ----------------------------------------------------------------
   assign stall       = fillBusy || missNow || !canFetch;
@@ -128,6 +135,7 @@ module fetch_ctrl #(
   assign pushPC      = pcF4;
   assign pushHwValid = hwF4;
   assign pushGshare  = gsF4;
+  assign pushRasPtr  = rpF4;
 
 endmodule
 

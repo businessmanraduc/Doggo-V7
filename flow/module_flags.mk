@@ -24,9 +24,9 @@ YOSYS_rat           :=                #  -8.96   175.18 -> 166.22
 YOSYS_linefill      :=                #  -6.13   216.58 -> 210.45
 
 # ---- BSRAM-bound: no flag moves these -------------------------------------------
-YOSYS_bpredict      :=                #  +0.50   142.75 -> 143.25
-YOSYS_btb           :=                #  +0.05   144.49 -> 144.54
-YOSYS_pht           :=                #   0.00   bit-identical netlist
+YOSYS_bpredict      :=                #  decoupled engine
+YOSYS_btb           :=                #  banked 2-word
+YOSYS_pht           :=                #  2-word
 
 # ---- resolution, evaluated once MOD is known ------------------------------------
 ifeq ($(FLAGS_POLICY),on)

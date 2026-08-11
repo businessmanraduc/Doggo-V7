@@ -12,20 +12,23 @@ module align_tb;
   logic [31:2] fq_pcA;
   logic [1:0]  fq_hwValidA, fq_hwValidB;
   logic [12:0] fq_gshareA;
+  logic [2:0]  fq_rasPtrA;
   logic [31:0] fq_wordA, fq_wordB;
   logic [1:0]  fq_take;
   logic        out_valid, out_isCompressed, out_ready;
   logic [31:1] out_pc;
   logic [31:0] out_instr;
   logic [12:0] out_gshare;
+  logic [2:0]  out_rasPtr;
 
   int errors = 0;
 
   align dut (
     .clk, .resetn, .flush,
-    .fq_validA, .fq_pcA, .fq_hwValidA, .fq_gshareA, .fq_wordA,
+    .fq_validA, .fq_pcA, .fq_hwValidA, .fq_gshareA, .fq_rasPtrA, .fq_wordA,
     .fq_validB, .fq_hwValidB, .fq_wordB, .fq_take,
-    .out_valid, .out_pc, .out_instr, .out_isCompressed, .out_gshare, .out_ready
+    .out_valid, .out_pc, .out_instr, .out_isCompressed, .out_gshare, .out_rasPtr,
+    .out_ready
   );
 
   initial begin
@@ -38,6 +41,7 @@ module align_tb;
   logic [31:2] mPc   [0:63];
   logic [1:0]  mHw   [0:63];
   logic [12:0] mGs   [0:63];
+  logic [2:0]  mRp   [0:63];
   logic [5:0]  mHead;
   int          mCount;
 
@@ -46,6 +50,7 @@ module align_tb;
   assign fq_pcA      = mPc  [mHead];
   assign fq_hwValidA = mHw  [mHead];
   assign fq_gshareA  = mGs  [mHead];
+  assign fq_rasPtrA  = mRp  [mHead];
   assign fq_wordA    = mWord[mHead];
   assign fq_hwValidB = mHw  [mHead + 6'd1];
   assign fq_wordB    = mWord[mHead + 6'd1];
@@ -63,6 +68,7 @@ module align_tb;
     mWord[mTail] = word;
     mPc  [mTail] = pc[31:2];
     mGs  [mTail] = 13'(pc >> 2);
+    mRp  [mTail] = 3'(pc >> 2);
     mHw  [mTail] = hw;
     mTail        = mTail + 6'd1;
     mCount       = mCount + 1;
@@ -110,6 +116,9 @@ module align_tb;
     end else if (out_gshare !== 13'(({out_pc, 1'b0}) >> 2)) begin
       $error("%-30s gshare=%h (expected %h)", note, out_gshare,
              13'(({out_pc, 1'b0}) >> 2)); errors++;
+    end else if (out_rasPtr !== 3'(({out_pc, 1'b0}) >> 2)) begin
+      $error("%-30s rasPtr=%h (expected %h)", note, out_rasPtr,
+             3'(({out_pc, 1'b0}) >> 2)); errors++;
     end else if (fq_take !== take) begin
       $error("%-30s take=%0d (expected %0d)", note, fq_take, take); errors++;
     end

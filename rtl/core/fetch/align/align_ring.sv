@@ -21,6 +21,7 @@ module align_ring (
   logic [31:1] out_pc;
   logic [31:0] out_instr;
   logic [12:0] out_gshare;
+  logic [2:0]  out_rasPtr;
 
   align u_dut (
     .clk,
@@ -30,6 +31,7 @@ module align_ring (
     .fq_validA   (ctl[5]),
     .fq_pcA      (pc[31:2]),
     .fq_hwValidA (ctl[3:2]),
+    .fq_rasPtrA  (pc[17:15]),
     .fq_gshareA  (pc[14:2]),
     .fq_wordA    (wA),
     .fq_validB   (ctl[4]),
@@ -37,12 +39,12 @@ module align_ring (
     .fq_wordB    (wB),
     .fq_take     (fq_take),
 
-    .out_valid, .out_pc, .out_instr, .out_isCompressed, .out_gshare,
+    .out_valid, .out_pc, .out_instr, .out_isCompressed, .out_gshare, .out_rasPtr,
     .out_ready   (pc[1])
   );
 
-  xor_sink #(.W(80)) u_sink (
-    .clk, .d({out_instr, out_pc, out_gshare, out_valid, out_isCompressed, fq_take}),
+  xor_sink #(.W(83)) u_sink (
+    .clk, .d({out_instr, out_pc, out_gshare, out_rasPtr, out_valid, out_isCompressed, fq_take}),
     .q(q)
   );
 
