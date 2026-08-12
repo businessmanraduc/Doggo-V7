@@ -156,7 +156,11 @@ module ftq #(
     end
   end
 
-  assign canPush = (count < (PTR_W+2)'(2*DEPTH - MARGIN));
+  logic [PTR_W-1:0] entriesUsed; assign entriesUsed = tail - headPtr;
+  always_ff @(posedge clk) begin
+    if (!resetn) canPush <= 1'b1;
+    else         canPush <= (entriesUsed < PTR_W'(DEPTH - MARGIN));
+  end
 
 endmodule
 

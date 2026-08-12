@@ -206,7 +206,7 @@ module ftq_tb;
 
   // ---- F - the credit stops the predictor before the queue overflows -----------
   task automatic checkCredit();
-    int pushed;
+    int pushed, drained;
     doReset();
     pushed = 0;
     while (canPush && pushed < DEPTH + 4) begin
@@ -219,13 +219,20 @@ module ftq_tb;
     if (dut.count > (PTR_W+2)'(2*DEPTH)) begin
       $error("F: overflowed to count=%0d", dut.count); errors++;
     end
-    // draining one pair must hand the credit back
-    takeIssue(pcAof(0), "F: drain issue A");
-    takeIssue(pcBof(0), "F: drain issue B");
-    takeRetire(pcAof(0), 2'b11, gsAof(0), rasOf(0), "F: drain retire A");
-    takeRetire(pcBof(0), 2'b01, gsBof(0), rasOf(0), "F: drain retire B");
-    if (canPush !== 1'b1) begin
-      $error("F: credit not returned after a pair retired"); errors++;
+    // draining must hand the credit back
+    drained = 0;
+    while (!canPush && drained < 4) begin
+      takeIssue (pcAof(drained), $sformatf("F: drain issue A%0d", drained));
+      takeIssue (pcBof(drained), $sformatf("F: drain issue B%0d", drained));
+      takeRetire(pcAof(drained), 2'b11, gsAof(drained), rasOf(drained),
+                 $sformatf("F: drain retire A%0d", drained));
+      takeRetire(pcBof(drained), 2'b01, gsBof(drained), rasOf(drained),
+                 $sformatf("F: drain retire B%0d", drained));
+      drained++;
+      @(negedge clk);
+    end
+    if (!canPush) begin
+      $error("F: credit not returned after draining %0d pairs", drained); errors++;
     end
   endtask
 
@@ -257,6 +264,27 @@ module ftq_tb;
     end
   endtask
 
+  // ---- H - a run of one-word entries must not lap the queue --------------------
+  task automatic checkSoloEntryCredit();
+    int pushed, drained;
+    doReset();
+    pushed = 0;
+    while (canPush && pushed < 4*DEPTH) begin
+      doPush(pushed, 1'b0);
+      pushed++;
+    end
+    if (pushed >= 4*DEPTH) begin
+      $error("H: credit never dropped after %0d solo pushes", pushed); errors++;
+    end else if (pushed >= DEPTH) begin
+      $error("H: took %0d solo entries into a %0d entry queue", pushed, DEPTH);
+      errors++;
+    end
+    if (headPC !== pcAof(0)) begin
+      $error("H: head is %h, expected %h, the tail lapped it",
+             {headPC, 2'b00}, {pcAof(0), 2'b00}); errors++;
+    end
+  endtask
+
   initial begin
     checkPairInOrder();
     checkSuppressedBSkipped();
@@ -265,6 +293,7 @@ module ftq_tb;
     checkFlush();
     checkCredit();
     checkWrap();
+    checkSoloEntryCredit();
 
     if (errors == 0) $display("PASS  ftq");
     else             $fatal(1, "FAIL  ftq (%0d errors)", errors);
