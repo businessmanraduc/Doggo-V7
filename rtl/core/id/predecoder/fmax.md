@@ -1,4 +1,4 @@
-# decoder solo Fmax
+# predecoder solo Fmax
 
 ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 

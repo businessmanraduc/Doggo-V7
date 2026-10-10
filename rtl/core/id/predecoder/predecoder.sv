@@ -1,5 +1,5 @@
 // ================================================================================
-//  Fetch Engine Decoder: rename-critical decode of RV32IMC + Zicsr + Zifencei
+//  Fetch Pre-Decoder: rename-critical decode of RV32IMC + Zicsr + Zifencei
 // ================================================================================
 //  The 32-bit and 16-bit encodings are to be decoded in parallel from the
 //  aligned instruction incoming, while the rvc flag decides the winner out of
@@ -13,8 +13,8 @@
 //   - x0 is folded per path in rdWriteEnable, rs1Use, rs2Use.
 //   - makes pc, branchTarget and seq halfword addresses.
 // ================================================================================
-module decoder #(
-  parameter int MW = 1                      // prediction metadata to F1
+module predecoder #(
+  parameter int MW = 1                      // prediction metadata
 ) (
   input  logic          clk,
   input  logic          resetn,

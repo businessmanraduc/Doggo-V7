@@ -1,5 +1,5 @@
 // ================================================================================
-//  decoder_tb -- decoder against an independent reference
+//  predecoder_tb -- predecoder against an independent reference
 // ================================================================================
 //  Reference: every 16-bit encoding is expanded to its 32-bit form (spec
 //  tables, offsets scattered bit by bit), then decoded by major opcode. The
@@ -9,7 +9,7 @@
 //  Fields of illegal encodings are don't-care; indices only when used.
 // ================================================================================
 
-module decoder_tb;
+module predecoder_tb;
 
   localparam int MW = 4;
 
@@ -32,7 +32,7 @@ module decoder_tb;
   logic          d_r1_isBranch, d_r1_isJal, d_r1_isJalr, d_r1_isCall, d_r1_isRet;
   logic [30:0]   d_r1_branchTarget, d_r1_seq;
 
-  decoder #(.MW(MW)) u_dut (.*);
+  predecoder #(.MW(MW)) u_dut (.*);
 
   always #5 clk = ~clk;
 
@@ -344,8 +344,8 @@ module decoder_tb;
       $display("ERROR chk_cov: stimulus misses a case");
       errors++;
     end
-    if (errors == 0) $display("PASS  decoder");
-    else             $fatal(1, "FAIL  decoder (%0d errors)", errors);
+    if (errors == 0) $display("PASS  predecoder");
+    else             $fatal(1, "FAIL  predecoder (%0d errors)", errors);
     $finish;
   end
 

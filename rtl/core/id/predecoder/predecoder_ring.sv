@@ -1,9 +1,9 @@
 // ================================================================================
-//  decoder_ring -- ring wrapper: every DUT port register-bounded
+//  predecoder_ring -- ring wrapper: every DUT port register-bounded
 //  ports are the ring convention: clk, perturb (in), q (out)
 // ================================================================================
 
-module decoder_ring (
+module predecoder_ring (
   input  logic clk,
   input  logic perturb,
   output logic q
@@ -27,7 +27,7 @@ module decoder_ring (
   logic          d_r1_rs1Use, d_r1_rs2Use, d_r1_rdWriteEnable;
   logic          d_r1_isBranch, d_r1_isJal, d_r1_isJalr, d_r1_isCall, d_r1_isRet;
 
-  decoder #(.MW(MW)) u_dut (
+  predecoder #(.MW(MW)) u_dut (
     .clk,
     .resetn     (ctl[7]),
     .f5_d_valid (ctl[6]),
