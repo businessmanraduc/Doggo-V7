@@ -21,6 +21,9 @@ OUT   ?= $(DIR)/fmax.md
 
 include flow/module_flags.mk
 
+TOOLCHECK := yosys nextpnr
+include flow/toolcheck.mk
+
 FLAGSTAMP := $(BUILD)/.flags
 $(shell mkdir -p $(BUILD))
 $(shell printf '%s' '$(MOD_YOSYS_FLAGS)' | cmp -s $(FLAGSTAMP) 2>/dev/null \

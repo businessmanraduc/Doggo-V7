@@ -11,6 +11,9 @@ BUILD := $(DIR)/build
 INC   := rtl/common
 SRCS  := $(filter-out %_ring.sv,$(wildcard $(DIR)/*.sv)) $(EXTRA)
 
+TOOLCHECK := verilator
+include flow/toolcheck.mk
+
 .PHONY: sim clean
 
 sim:

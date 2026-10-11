@@ -45,15 +45,18 @@ sorted=$(printf '%s\n' "${vals[@]}" | sort -n)
 floor=$(printf '%s' "$sorted" | head -1)
 ceil=$(printf '%s' "$sorted" | tail -1)
 mean=$(printf '%s\n' "${vals[@]}" | awk '{s+=$1} END{printf "%.2f", s/NR}')
+median=$(printf '%s\n' "$sorted" | awk '{v[NR]=$1} END{m=int((NR+1)/2); printf "%.2f", NR%2 ? v[m] : (v[m]+v[m+1])/2}')
+tools="$(yosys -V | awk '{print $1, $2}'), $(nextpnr-ecp5 --version 2>&1 | head -n 1 | sed -E 's/.*Version ([^)]*).*/\1/')"
 
 {
   echo "# $mod solo Fmax"
   echo
   echo "ring-of-regs, nextpnr --85k CABGA381, tw=$tw, $seeds seeds"
+  echo "tools: $tools"
   echo
-  echo "| floor | mean | ceil |"
-  echo "|---|---|---|"
-  echo "| $floor | $mean | $ceil |"
+  echo "| floor | median | mean | ceil |"
+  echo "|---|---|---|---|"
+  echo "| $floor | $median | $mean | $ceil |"
   echo
   echo "## census (worst path per seed)"
   echo
@@ -62,5 +65,5 @@ mean=$(printf '%s\n' "${vals[@]}" | awk '{s+=$1} END{printf "%.2f", s/NR}')
   printf '%s\n' "${census[@]}" | sed -E 's/ MHz +/ | /'
 } >"$out"
 
-printf 'RESULT  floor %s / mean %s / ceil %s  ->  %s\n' "$floor" "$mean" "$ceil" "$out"
+printf 'RESULT  floor %s / median %s / mean %s / ceil %s  ->  %s\n' "$floor" "$median" "$mean" "$ceil" "$out"
 echo 'deep dive:  python3 flow/critpath.py '"$logdir"'/s<seed>.log'
