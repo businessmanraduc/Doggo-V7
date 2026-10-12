@@ -1,6 +1,10 @@
 // ================================================================================
 //  Main Decoder: rest of the decode over R1 and R2, beside rename
 // ================================================================================
+//  D               R1            R2              DS1
+//  predecoder ─┬─► rename R1 ──► rename R2 ──┬─► DS1
+//              └─► decoder R1 ─► decoder R2 ─┘
+// ================================================================================
 //  Everything the predecoder left out: class, latency group, execute controls
 //  in the shape their units take, sys op, immediates, illegals.
 //
