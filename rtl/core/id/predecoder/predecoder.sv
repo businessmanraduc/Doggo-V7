@@ -1,6 +1,10 @@
 // ================================================================================
 //  Fetch Pre-Decoder: rename-critical decode of RV32IMC + Zicsr + Zifencei
 // ================================================================================
+//  Align       D               RD1
+//  aligner ──► predecoder ─┬─► rename R1
+//                          └─► decoder R1
+// ================================================================================
 //  The 32-bit and 16-bit encodings are to be decoded in parallel from the
 //  aligned instruction incoming, while the rvc flag decides the winner out of
 //  the two decoded pairs.

@@ -3,17 +3,17 @@
 // ================================================================================
 //  Reference: map and retirement map as arrays, free list as an unbounded log
 //  with integer head/tail/commit pointers (no ring), snapshots copied at rename
-//  time (not a cycle late). Both registers (R1/R2, R2/DS1) are shadowed cycle by
-//  cycle with their stalls and kills. The bench is the rest of the core: a D/R1
-//  register that holds on stall_d_r1 and is flushed on a kill, an in-order ROB
-//  that resolves branches out of order (mispredict kills the younger ones),
+//  time (not a cycle late). Both registers (R1/R2, R2/PreDS) are shadowed cycle
+//  by cycle with their stalls and kills. The bench is the rest of the core: a
+//  D/R1 register that holds on stall_d_r1 and is flushed on a kill, an in-order
+//  ROB that resolves branches out of order (mispredict kills the younger ones),
 //  commits from the head and flushes at the head, with or without a commit.
 //  Semantic checks at the ROB, independent of the reference: a commit's old tag
 //  is the retirement map's entry, a new tag is in no live mapping, a uop's
-//  branch mask is exactly the older unresolved branches, a snapshot index is not
-//  in use. Phases: realistic ROB 16, ROB 48 with slow commit (free-list stall),
-//  branch-heavy (snapshot stall); a reset starts every phase. R1 is held for
-//  two cycles after a kill (recovery from registered kills).
+//  branch mask is exactly the older unresolved branches, a snapshot index is
+//  not in use. Phases: realistic ROB 16, ROB 48 with slow commit (free-list
+//  stall), branch-heavy (snapshot stall); a reset starts every phase. R1 is
+//  held for two cycles after a kill (recovery from registered kills).
 // ================================================================================
 
 /* verilator lint_off WIDTHEXPAND */
@@ -25,7 +25,7 @@ module rename_tb;
   logic [4:0] d_r1_rs1Index = '0, d_r1_rs2Index = '0, d_r1_rdIndex = '0;
   logic       d_r1_rs1Use = 1'b0, d_r1_rs2Use = 1'b0, d_r1_rdWriteEnable = 1'b0;
   logic       d_r1_isBranch = 1'b0, d_r1_isJalr = 1'b0;
-  logic       stall_r2_ds1 = 1'b0;
+  logic       stall_r2_pds = 1'b0;
   logic       stall_r1_r2, stall_d_r1;
   logic       ex_resolveValid = 1'b0;
   logic [1:0] ex_resolveSnapshot = '0;
@@ -34,12 +34,12 @@ module rename_tb;
   logic [4:0] cm_rdIndex = '0;
   logic [5:0] cm_rdTag = '0, cm_rdOldTag = '0;
   logic       cm_flush = 1'b0;
-  logic       r2_ds1_valid;
-  logic [5:0] r2_ds1_rs1Tag, r2_ds1_rs2Tag, r2_ds1_rdTag, r2_ds1_rdOldTag;
-  logic       r2_ds1_rs1Use, r2_ds1_rs2Use, r2_ds1_rdWriteEnable;
-  logic [4:0] r2_ds1_rdIndex;
-  logic [3:0] r2_ds1_branchMask;
-  logic [1:0] r2_ds1_snapshot;
+  logic       r2_pds_valid;
+  logic [5:0] r2_pds_rs1Tag, r2_pds_rs2Tag, r2_pds_rdTag, r2_pds_rdOldTag;
+  logic       r2_pds_rs1Use, r2_pds_rs2Use, r2_pds_rdWriteEnable;
+  logic [4:0] r2_pds_rdIndex;
+  logic [3:0] r2_pds_branchMask;
+  logic [1:0] r2_pds_snapshot;
 
   rename u_dut (.*);
 
@@ -64,7 +64,7 @@ module rename_tb;
   longint   sage [4];                      // rename order of the snapshot's branch
   longint   nTake = 0;
   bit [3:0] live;
-  exp_t     e1, e2;                         // shadows of r1_r2, r2_ds1
+  exp_t     e1, e2;                         // shadows of r1_r2, r2_pds
 
   typedef struct {
     int       id;
@@ -168,8 +168,8 @@ module rename_tb;
     // ---- register shadows ------------------------------------------------------
     e2n = e2;
     if (c_kill)             e2n.valid = 1'b0;
-    else if (!stall_r2_ds1) e2n = e1;
-    e2n.mask = (stall_r2_ds1 ? e2.mask : e1.mask) & ~c_clear;
+    else if (!stall_r2_pds) e2n = e1;
+    e2n.mask = (stall_r2_pds ? e2.mask : e1.mask) & ~c_clear;
     e1n = e1;
     if (c_kill)             e1n.valid = 1'b0;
     else if (!c_stall1) begin
@@ -194,23 +194,23 @@ module rename_tb;
     if (c_push && !c_kill) rob.push_back(c_pushed);
   endtask
 
-  // ---- registered outputs against the R2/DS1 shadow ----------------------------
+  // ---- registered outputs against the R2/PreDS shadow --------------------------
   task automatic checkOutputs();
-    if (r2_ds1_valid !== e2.valid) fail("chk_valid", $sformatf("valid %0d exp %0d", r2_ds1_valid, e2.valid));
-    if (!e2.valid || r2_ds1_valid !== 1'b1) return;
-    if (r2_ds1_rs1Tag != e2.rs1Tag || r2_ds1_rs2Tag != e2.rs2Tag)
-      fail("chk_src", $sformatf("rs1 %0d rs2 %0d exp %0d %0d", r2_ds1_rs1Tag, r2_ds1_rs2Tag, e2.rs1Tag, e2.rs2Tag));
-    if (r2_ds1_rdOldTag != e2.oldTag)
-      fail("chk_old", $sformatf("old %0d exp %0d", r2_ds1_rdOldTag, e2.oldTag));
-    if (e2.rdWE && r2_ds1_rdTag != e2.rdTag)
-      fail("chk_dest", $sformatf("rd %0d exp %0d", r2_ds1_rdTag, e2.rdTag));
-    if ({r2_ds1_rs1Use, r2_ds1_rs2Use, r2_ds1_rdWriteEnable, r2_ds1_rdIndex} !=
+    if (r2_pds_valid !== e2.valid) fail("chk_valid", $sformatf("valid %0d exp %0d", r2_pds_valid, e2.valid));
+    if (!e2.valid || r2_pds_valid !== 1'b1) return;
+    if (r2_pds_rs1Tag != e2.rs1Tag || r2_pds_rs2Tag != e2.rs2Tag)
+      fail("chk_src", $sformatf("rs1 %0d rs2 %0d exp %0d %0d", r2_pds_rs1Tag, r2_pds_rs2Tag, e2.rs1Tag, e2.rs2Tag));
+    if (r2_pds_rdOldTag != e2.oldTag)
+      fail("chk_old", $sformatf("old %0d exp %0d", r2_pds_rdOldTag, e2.oldTag));
+    if (e2.rdWE && r2_pds_rdTag != e2.rdTag)
+      fail("chk_dest", $sformatf("rd %0d exp %0d", r2_pds_rdTag, e2.rdTag));
+    if ({r2_pds_rs1Use, r2_pds_rs2Use, r2_pds_rdWriteEnable, r2_pds_rdIndex} !=
         {e2.rs1Use, e2.rs2Use, e2.rdWE, e2.rdIndex})
       fail("chk_pass", "pass-through fields");
-    if (r2_ds1_branchMask != e2.mask)
-      fail("chk_bmask", $sformatf("mask %b exp %b", r2_ds1_branchMask, e2.mask));
-    if (e2.needSnap && r2_ds1_snapshot != e2.snap)
-      fail("chk_snapidx", $sformatf("snapshot %0d exp %0d", r2_ds1_snapshot, e2.snap));
+    if (r2_pds_branchMask != e2.mask)
+      fail("chk_bmask", $sformatf("mask %b exp %b", r2_pds_branchMask, e2.mask));
+    if (e2.needSnap && r2_pds_snapshot != e2.snap)
+      fail("chk_snapidx", $sformatf("snapshot %0d exp %0d", r2_pds_snapshot, e2.snap));
   endtask
 
   // ---- stimulus for the coming cycle -------------------------------------------
@@ -236,7 +236,7 @@ module rename_tb;
       d_r1_rdWriteEnable = !d_r1_isBranch && pct(75) && d_r1_rdIndex != 0;
     end
 
-    stall_r2_ds1 = pct(pStall) || rob.size() >= robCap;
+    stall_r2_pds = pct(pStall) || rob.size() >= robCap;
 
     // resolve: a random unresolved branch in the ROB
     ex_resolveValid = 1'b0;
@@ -291,7 +291,7 @@ module rename_tb;
     c_mis    = ex_resolveValid & ex_resolveMispredict;
     c_flush  = cm_flush;
     c_kill   = c_mis | c_flush;
-    c_stall1 = stall_r2_ds1 & e1.valid;
+    c_stall1 = stall_r2_pds & e1.valid;
     need     = d_r1_isBranch | d_r1_isJalr;
     block    = rstall | kq1 | kq2 | (need & (&live));
     stallD   = c_stall1 | (d_r1_valid & block);
@@ -342,17 +342,17 @@ module rename_tb;
     end
 
     // transfer into the ROB: semantic mask and snapshot checks
-    c_push = r2_ds1_valid && !stall_r2_ds1;
+    c_push = r2_pds_valid && !stall_r2_pds;
     if (c_push) begin
       unres = '0;
       foreach (rob[i]) if (rob[i].isBr && !rob[i].resolved) unres[rob[i].snap] = 1'b1;
-      if (r2_ds1_branchMask != unres)
-        fail("chk_maskorder", $sformatf("mask %b, older unresolved %b", r2_ds1_branchMask, unres));
-      if (e2.needSnap && unres[r2_ds1_snapshot])
-        fail("chk_snapfree", $sformatf("snapshot %0d in use", r2_ds1_snapshot));
-      c_pushed = '{id: nextId++, rdWE: r2_ds1_rdWriteEnable, isBr: e2.needSnap, resolved: 1'b0,
-                   rdIndex: r2_ds1_rdIndex, rdTag: r2_ds1_rdTag, oldTag: r2_ds1_rdOldTag,
-                   snap: r2_ds1_snapshot};
+      if (r2_pds_branchMask != unres)
+        fail("chk_maskorder", $sformatf("mask %b, older unresolved %b", r2_pds_branchMask, unres));
+      if (e2.needSnap && unres[r2_pds_snapshot])
+        fail("chk_snapfree", $sformatf("snapshot %0d in use", r2_pds_snapshot));
+      c_pushed = '{id: nextId++, rdWE: r2_pds_rdWriteEnable, isBr: e2.needSnap, resolved: 1'b0,
+                   rdIndex: r2_pds_rdIndex, rdTag: r2_pds_rdTag, oldTag: r2_pds_rdOldTag,
+                   snap: r2_pds_snapshot};
       if (c_kill) nKillXfer++;
     end
 
@@ -361,7 +361,7 @@ module rename_tb;
     nFreeStall += int'(d_r1_valid && rstall && !rinit && ft - fh < 4 && !c_stall1 && !kq1 && !kq2);
     nSnapStall += int'(d_r1_valid && need && (&live) && !rstall && !c_stall1 && !kq1 && !kq2);
     nHold1     += int'(c_stall1);
-    nHold2     += int'(stall_r2_ds1 && e2.valid);
+    nHold2     += int'(stall_r2_pds && e2.valid);
     prevKill   = c_kill;
     prevStallD = stallD;
   endtask
@@ -378,7 +378,7 @@ module rename_tb;
     inReset = rst;
     if (rst) begin
       d_r1_valid = 1'b0; ex_resolveValid = 1'b0; cm_commitRd = 1'b0; cm_flush = 1'b0;
-      stall_r2_ds1 = 1'b0; c_commitId = -1; c_resolveId = -1;
+      stall_r2_pds = 1'b0; c_commitId = -1; c_resolveId = -1;
       prevKill = 1'b0; prevStallD = 1'b0;
     end else begin
       chooseInputs();
@@ -413,7 +413,7 @@ module rename_tb;
 
     $display("go %0d commits %0d mispredicts %0d flushes %0d+%0d wraps %0d", nGo, nCommit, nMis,
              nFlushC, nFlushN, nWrap);
-    $display("free stall %0d snapshot stall %0d held r1/r2 %0d r2/ds1 %0d killed transfers %0d",
+    $display("free stall %0d snapshot stall %0d held r1/r2 %0d r2/pds %0d killed transfers %0d",
              nFreeStall, nSnapStall, nHold1, nHold2, nKillXfer);
     cov = nGo > 50000 && nMis != 0 && nFlushC != 0 && nFlushN != 0 && nFreeStall != 0 &&
           nSnapStall != 0 && nHold1 != 0 && nHold2 != 0 && nKillXfer != 0 && nWrap != 0;

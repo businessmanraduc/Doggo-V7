@@ -16,12 +16,12 @@ module rename_ring (
   lfsr_src #(.W(14)) u_s1 (.clk, .perturb(s0[0]),   .q(s1));
 
   logic       stall_r1_r2, stall_d_r1;
-  logic       r2_ds1_valid;
-  logic [5:0] r2_ds1_rs1Tag, r2_ds1_rs2Tag, r2_ds1_rdTag, r2_ds1_rdOldTag;
-  logic       r2_ds1_rs1Use, r2_ds1_rs2Use, r2_ds1_rdWriteEnable;
-  logic [4:0] r2_ds1_rdIndex;
-  logic [3:0] r2_ds1_branchMask;
-  logic [1:0] r2_ds1_snapshot;
+  logic       r2_pds_valid;
+  logic [5:0] r2_pds_rs1Tag, r2_pds_rs2Tag, r2_pds_rdTag, r2_pds_rdOldTag;
+  logic       r2_pds_rs1Use, r2_pds_rs2Use, r2_pds_rdWriteEnable;
+  logic [4:0] r2_pds_rdIndex;
+  logic [3:0] r2_pds_branchMask;
+  logic [1:0] r2_pds_snapshot;
 
   rename u_dut (
     .clk,
@@ -35,7 +35,7 @@ module rename_ring (
     .d_r1_rdWriteEnable   (s0[18]),
     .d_r1_isBranch        (s0[19]),
     .d_r1_isJalr          (s0[20]),
-    .stall_r2_ds1         (s0[21]),
+    .stall_r2_pds         (s0[21]),
     .ex_resolveValid      (s0[22]),
     .ex_resolveSnapshot   (s0[24:23]),
     .ex_resolveMispredict (s0[25]),
@@ -45,15 +45,15 @@ module rename_ring (
     .cm_rdOldTag          (s1[11:6]),
     .cm_flush             (s1[12]),
     .stall_r1_r2, .stall_d_r1,
-    .r2_ds1_valid, .r2_ds1_rs1Tag, .r2_ds1_rs2Tag, .r2_ds1_rdTag, .r2_ds1_rdOldTag,
-    .r2_ds1_rs1Use, .r2_ds1_rs2Use, .r2_ds1_rdIndex, .r2_ds1_rdWriteEnable,
-    .r2_ds1_branchMask, .r2_ds1_snapshot
+    .r2_pds_valid, .r2_pds_rs1Tag, .r2_pds_rs2Tag, .r2_pds_rdTag, .r2_pds_rdOldTag,
+    .r2_pds_rs1Use, .r2_pds_rs2Use, .r2_pds_rdIndex, .r2_pds_rdWriteEnable,
+    .r2_pds_branchMask, .r2_pds_snapshot
   );
 
   xor_sink #(.W(41)) u_snk (.clk, .q, .d({
     stall_r1_r2, stall_d_r1,
-    r2_ds1_valid, r2_ds1_rs1Tag, r2_ds1_rs2Tag, r2_ds1_rdTag, r2_ds1_rdOldTag,
-    r2_ds1_rs1Use, r2_ds1_rs2Use, r2_ds1_rdIndex, r2_ds1_rdWriteEnable,
-    r2_ds1_branchMask, r2_ds1_snapshot}));
+    r2_pds_valid, r2_pds_rs1Tag, r2_pds_rs2Tag, r2_pds_rdTag, r2_pds_rdOldTag,
+    r2_pds_rs1Use, r2_pds_rs2Use, r2_pds_rdIndex, r2_pds_rdWriteEnable,
+    r2_pds_branchMask, r2_pds_snapshot}));
 
 endmodule

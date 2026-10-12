@@ -1,8 +1,8 @@
 // ================================================================================
-//  rename -- register rename over R1 and R2, beside the decoder
+//  Rename: register rename over R1 and R2, beside the decoder
 // ================================================================================
-//  D               R1            R2              DS1
-//  predecoder ─┬─► rename R1 ──► rename R2 ──┬─► DS1
+//  D               RD1           RD2             PreDS
+//  predecoder ─┬─► rename R1 ──► rename R2 ──┬─► predisp
 //              └─► decoder R1 ─► decoder R2 ─┘
 // ================================================================================
 //  32 architectural -> 64 physical registers (6-bit tags), 1 uop/cycle.
@@ -36,7 +36,7 @@ module rename (
   input  logic        d_r1_isBranch,
   input  logic        d_r1_isJalr,
   // ---- inter-stage pipeline register controls ----------------------------------
-  input  logic        stall_r2_ds1,         // DS1 cannot take the register
+  input  logic        stall_r2_pds,         // PreDS cannot take the register
   output logic        stall_r1_r2,          // to the decoder
   output logic        stall_d_r1,           // to the predecoder
   // ---- branch resolve (EX) -----------------------------------------------------
@@ -50,17 +50,17 @@ module rename (
   input  logic [5:0]  cm_rdOldTag,
   input  logic        cm_flush,             // flush all + map from retirement map
   // ---- Rename-2/Dispatch-1 inter-stage pipeline register -----------------------
-  output logic        r2_ds1_valid,
-  output logic [5:0]  r2_ds1_rs1Tag,
-  output logic [5:0]  r2_ds1_rs2Tag,
-  output logic [5:0]  r2_ds1_rdTag,
-  output logic [5:0]  r2_ds1_rdOldTag,
-  output logic        r2_ds1_rs1Use,
-  output logic        r2_ds1_rs2Use,
-  output logic [4:0]  r2_ds1_rdIndex,
-  output logic        r2_ds1_rdWriteEnable,
-  output logic [3:0]  r2_ds1_branchMask,    // older unresolved branches
-  output logic [1:0]  r2_ds1_snapshot       // own snapshot (branch, jalr)
+  output logic        r2_pds_valid,
+  output logic [5:0]  r2_pds_rs1Tag,
+  output logic [5:0]  r2_pds_rs2Tag,
+  output logic [5:0]  r2_pds_rdTag,
+  output logic [5:0]  r2_pds_rdOldTag,
+  output logic        r2_pds_rs1Use,
+  output logic        r2_pds_rs2Use,
+  output logic [4:0]  r2_pds_rdIndex,
+  output logic        r2_pds_rdWriteEnable,
+  output logic [3:0]  r2_pds_branchMask,    // older unresolved branches
+  output logic [1:0]  r2_pds_snapshot       // own snapshot (branch, jalr)
 );
 
   // ---- state -------------------------------------------------------------------
@@ -95,7 +95,7 @@ module rename (
 
   assign r1_needSnapshot = d_r1_isBranch | d_r1_isJalr;
   assign r1_block        = rn_hold | (r1_needSnapshot & sn_full);
-  assign stall_r1_r2     = stall_r2_ds1 & r1_r2_valid;
+  assign stall_r1_r2     = stall_r2_pds & r1_r2_valid;
   assign stall_d_r1      = stall_r1_r2 | (d_r1_valid & r1_block);
   assign r1_go           = d_r1_valid & !stall_d_r1;
   assign r1_write        = r1_go & d_r1_rdWriteEnable;
@@ -241,22 +241,22 @@ module rename (
 
   // ---- Rename-2/Dispatch-1 register: map read 2 --------------------------------
   always_ff @(posedge clk) begin
-    if (!resetn || rn_kill) r2_ds1_valid <= 1'b0;
-    else if (!stall_r2_ds1) r2_ds1_valid <= r1_r2_valid;
+    if (!resetn || rn_kill) r2_pds_valid <= 1'b0;
+    else if (!stall_r2_pds) r2_pds_valid <= r1_r2_valid;
 
-    if (!stall_r2_ds1) begin
-      r2_ds1_rs1Tag        <= r1_r2_rs1Part[r1_r2_rs1Group];
-      r2_ds1_rs2Tag        <= r1_r2_rs2Part[r1_r2_rs2Group];
-      r2_ds1_rdOldTag      <= r1_r2_rdPart[r1_r2_rdGroup];
-      r2_ds1_rdTag         <= r1_r2_rdTag;
-      r2_ds1_rs1Use        <= r1_r2_rs1Use;
-      r2_ds1_rs2Use        <= r1_r2_rs2Use;
-      r2_ds1_rdIndex       <= r1_r2_rdIndex;
-      r2_ds1_rdWriteEnable <= r1_r2_rdWriteEnable;
-      r2_ds1_snapshot      <= r1_r2_snapshot;
+    if (!stall_r2_pds) begin
+      r2_pds_rs1Tag        <= r1_r2_rs1Part[r1_r2_rs1Group];
+      r2_pds_rs2Tag        <= r1_r2_rs2Part[r1_r2_rs2Group];
+      r2_pds_rdOldTag      <= r1_r2_rdPart[r1_r2_rdGroup];
+      r2_pds_rdTag         <= r1_r2_rdTag;
+      r2_pds_rs1Use        <= r1_r2_rs1Use;
+      r2_pds_rs2Use        <= r1_r2_rs2Use;
+      r2_pds_rdIndex       <= r1_r2_rdIndex;
+      r2_pds_rdWriteEnable <= r1_r2_rdWriteEnable;
+      r2_pds_snapshot      <= r1_r2_snapshot;
     end
 
-    r2_ds1_branchMask <= (stall_r2_ds1 ? r2_ds1_branchMask : r1_r2_branchMask) & ~ex_resolveClear;
+    r2_pds_branchMask <= (stall_r2_pds ? r2_pds_branchMask : r1_r2_branchMask) & ~ex_resolveClear;
   end
 
 endmodule

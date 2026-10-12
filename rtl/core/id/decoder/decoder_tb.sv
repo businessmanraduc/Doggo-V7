@@ -3,11 +3,12 @@
 // ================================================================================
 //  Reference: every 16-bit encoding is expanded to its 32-bit form (spec
 //  tables), then the 32-bit form is decoded by opcode, funct3 and funct7 into
-//  the expected uop. Both registers (R1/R2, R2/DS1) are modelled cycle by cycle
-//  with their own stall. rs1Use/rs2Use are driven as the decoder makes them
-//  (x0 folded). Phase 1: all 49152 16-bit encodings. Phase 2: 32-bit vectors,
-//  opcodes and funct7 biased. Phase 3: mixed stream under random stalls.
-//  Illegal: only class, latency, system, serialising and illegal are checked.
+//  the expected uop. Both registers (R1/R2, R2/PreDS) are modelled cycle by
+//  cycle with their own stall. rs1Use/rs2Use are driven as the decoder makes
+//  them (x0 folded). Phase 1: all 49152 16-bit encodings. Phase 2: 32-bit
+//  vectors, opcodes and funct7 biased. Phase 3: mixed stream under random
+//  stalls. Illegal: only class, latency, system, serialising and illegal are
+//  checked.
 // ================================================================================
 
 `include "uop_defs.svh"
@@ -28,23 +29,23 @@ module decoder_tb;
   logic [30:0]          d_r1_branchTarget = '0;
   logic [30:0]          d_r1_seq = '0;
   logic                 stall_r1_r2 = 1'b0;
-  logic                 stall_r2_ds1 = 1'b0;
-  logic [30:0]          r2_ds1_pc, r2_ds1_branchTarget, r2_ds1_seq;
-  logic [MW-1:0]        r2_ds1_meta;
-  logic                 r2_ds1_isCall, r2_ds1_isRet;
-  logic [CLASS_W-1:0]   r2_ds1_class;
-  logic [LATENCY_W-1:0] r2_ds1_latency;
-  logic                 r2_ds1_sub, r2_ds1_selArith, r2_ds1_selAnd, r2_ds1_selOr, r2_ds1_selXor;
-  logic                 r2_ds1_selSlt, r2_ds1_sltUnsigned, r2_ds1_shiftRight, r2_ds1_shiftArith;
-  logic                 r2_ds1_xIsPC, r2_ds1_xIsZero, r2_ds1_zIsImm, r2_ds1_zIsZero;
-  logic                 r2_ds1_branchUseLt, r2_ds1_branchInvert;
-  logic                 r2_ds1_mulSignedA, r2_ds1_mulSignedB, r2_ds1_mulHigh;
-  logic                 r2_ds1_divSigned, r2_ds1_divRemainder;
-  logic [2:0]           r2_ds1_func3;
-  logic [SYSTEM_W-1:0]  r2_ds1_system;
-  logic                 r2_ds1_serialising;
-  logic [31:0]          r2_ds1_immediate;
-  logic                 r2_ds1_illegal;
+  logic                 stall_r2_pds = 1'b0;
+  logic [30:0]          r2_pds_pc, r2_pds_branchTarget, r2_pds_seq;
+  logic [MW-1:0]        r2_pds_meta;
+  logic                 r2_pds_isCall, r2_pds_isRet;
+  logic [CLASS_W-1:0]   r2_pds_class;
+  logic [LATENCY_W-1:0] r2_pds_latency;
+  logic                 r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor;
+  logic                 r2_pds_selSlt, r2_pds_sltUnsigned, r2_pds_shiftRight, r2_pds_shiftArith;
+  logic                 r2_pds_xIsPC, r2_pds_xIsZero, r2_pds_zIsImm, r2_pds_zIsZero;
+  logic                 r2_pds_branchUseLt, r2_pds_branchInvert;
+  logic                 r2_pds_mulSignedA, r2_pds_mulSignedB, r2_pds_mulHigh;
+  logic                 r2_pds_divSigned, r2_pds_divRemainder;
+  logic [2:0]           r2_pds_func3;
+  logic [SYSTEM_W-1:0]  r2_pds_system;
+  logic                 r2_pds_serialising;
+  logic [31:0]          r2_pds_immediate;
+  logic                 r2_pds_illegal;
 
   decoder #(.MW(MW)) u_dut (.*);
 
@@ -282,7 +283,7 @@ module decoder_tb;
     return l;
   endfunction
 
-  // ---- R1/R2 and R2/DS1 register model -----------------------------------------
+  // ---- R1/R2 and R2/PreDS register model ---------------------------------------
   typedef struct {
     bit            known;
     ref_t          r;
@@ -293,7 +294,7 @@ module decoder_tb;
     logic          isCall, isRet;
   } slot_t;
 
-  slot_t m_r1r2 = '{default: '0}, m_r2ds1 = '{default: '0};
+  slot_t m_r1r2 = '{default: '0}, m_r2pds = '{default: '0};
 
   always @(posedge clk) begin
     if (!stall_r1_r2) begin
@@ -308,7 +309,7 @@ module decoder_tb;
       m_r1r2.isCall       <= d_r1_isCall;
       m_r1r2.isRet        <= d_r1_isRet;
     end
-    if (!stall_r2_ds1) m_r2ds1 <= m_r1r2;
+    if (!stall_r2_pds) m_r2pds <= m_r1r2;
   end
 
   // ---- checks ------------------------------------------------------------------
@@ -320,70 +321,70 @@ module decoder_tb;
   task automatic fail(string name, string what);
     errors++;
     if (errors <= 20)
-      $display("ERROR %s: %s  instr=%h rvc=%0d", name, what, m_r2ds1.instr, m_r2ds1.rvc);
+      $display("ERROR %s: %s  instr=%h rvc=%0d", name, what, m_r2pds.instr, m_r2pds.rvc);
   endtask
 
   ref_t e;
 
-  always @(negedge clk) if (m_r2ds1.known) begin
-    e = m_r2ds1.r;
+  always @(negedge clk) if (m_r2pds.known) begin
+    e = m_r2pds.r;
     nHeld1 += int'(stall_r1_r2);
-    nHeld2 += int'(stall_r2_ds1);
-    if ({r2_ds1_pc, r2_ds1_branchTarget, r2_ds1_seq, r2_ds1_meta, r2_ds1_isCall, r2_ds1_isRet}
-        !== {m_r2ds1.pc, m_r2ds1.branchTarget, m_r2ds1.seq, m_r2ds1.meta, m_r2ds1.isCall,
-             m_r2ds1.isRet})
+    nHeld2 += int'(stall_r2_pds);
+    if ({r2_pds_pc, r2_pds_branchTarget, r2_pds_seq, r2_pds_meta, r2_pds_isCall, r2_pds_isRet}
+        !== {m_r2pds.pc, m_r2pds.branchTarget, m_r2pds.seq, m_r2pds.meta, m_r2pds.isCall,
+             m_r2pds.isRet})
       fail("chk_pass", "pass-through fields");
-    if (r2_ds1_illegal !== !e.legal) fail("chk_illegal", $sformatf("illegal %0d", r2_ds1_illegal));
+    if (r2_pds_illegal !== !e.legal) fail("chk_illegal", $sformatf("illegal %0d", r2_pds_illegal));
     if (!e.legal) begin
       nIll++;
-      if (r2_ds1_class !== '0 || r2_ds1_system !== '0)
-        fail("chk_illgate", $sformatf("class %b system %b", r2_ds1_class, r2_ds1_system));
-      if (r2_ds1_latency !== '0 || r2_ds1_serialising !== 1'b0)
-        fail("chk_illgate", $sformatf("latency %b ser %0d", r2_ds1_latency, r2_ds1_serialising));
+      if (r2_pds_class !== '0 || r2_pds_system !== '0)
+        fail("chk_illgate", $sformatf("class %b system %b", r2_pds_class, r2_pds_system));
+      if (r2_pds_latency !== '0 || r2_pds_serialising !== 1'b0)
+        fail("chk_illgate", $sformatf("latency %b ser %0d", r2_pds_latency, r2_pds_serialising));
     end else begin
       nChk++;
       for (int k = 0; k < CLASS_W; k++) nClass[k] += int'(e.cls[k]);
       for (int k = 0; k < SYSTEM_W; k++) nSys[k] += int'(e.sys[k]);
-      if (r2_ds1_class !== e.cls)
-        fail("chk_class", $sformatf("class %b exp %b", r2_ds1_class, e.cls));
-      if (r2_ds1_system !== e.sys)
-        fail("chk_system", $sformatf("system %b exp %b", r2_ds1_system, e.sys));
-      if (r2_ds1_latency !== latencyOf(e.cls))
-        fail("chk_latency", $sformatf("latency %b exp %b", r2_ds1_latency, latencyOf(e.cls)));
-      if (r2_ds1_serialising !== (e.cls[CLASS_CSR] || e.cls[CLASS_SYSTEM]))
-        fail("chk_serial", $sformatf("serialising %0d", r2_ds1_serialising));
-      if ({r2_ds1_sub, r2_ds1_selArith, r2_ds1_selAnd, r2_ds1_selOr, r2_ds1_selXor, r2_ds1_selSlt,
-           r2_ds1_sltUnsigned} !== {e.sub, e.arith, e.andOp, e.orOp, e.xorOp, e.slt, e.sltU})
+      if (r2_pds_class !== e.cls)
+        fail("chk_class", $sformatf("class %b exp %b", r2_pds_class, e.cls));
+      if (r2_pds_system !== e.sys)
+        fail("chk_system", $sformatf("system %b exp %b", r2_pds_system, e.sys));
+      if (r2_pds_latency !== latencyOf(e.cls))
+        fail("chk_latency", $sformatf("latency %b exp %b", r2_pds_latency, latencyOf(e.cls)));
+      if (r2_pds_serialising !== (e.cls[CLASS_CSR] || e.cls[CLASS_SYSTEM]))
+        fail("chk_serial", $sformatf("serialising %0d", r2_pds_serialising));
+      if ({r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor, r2_pds_selSlt,
+           r2_pds_sltUnsigned} !== {e.sub, e.arith, e.andOp, e.orOp, e.xorOp, e.slt, e.sltU})
         fail("chk_alu", $sformatf("sub arith and or xor slt sltU %b exp %b",
-             {r2_ds1_sub, r2_ds1_selArith, r2_ds1_selAnd, r2_ds1_selOr, r2_ds1_selXor,
-              r2_ds1_selSlt, r2_ds1_sltUnsigned}, {e.sub, e.arith, e.andOp, e.orOp, e.xorOp,
+             {r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor,
+              r2_pds_selSlt, r2_pds_sltUnsigned}, {e.sub, e.arith, e.andOp, e.orOp, e.xorOp,
               e.slt, e.sltU}));
-      if ({r2_ds1_xIsPC, r2_ds1_zIsImm} !== {e.xPc, e.zImm})
-        fail("chk_opsel", $sformatf("xIsPC zIsImm %b", {r2_ds1_xIsPC, r2_ds1_zIsImm}));
-      if (r2_ds1_xIsZero !== (!e.rs1Use && !e.xPc) || r2_ds1_zIsZero !== (!e.rs2Use && !e.zImm))
-        fail("chk_zero", $sformatf("xIsZero zIsZero %b", {r2_ds1_xIsZero, r2_ds1_zIsZero}));
+      if ({r2_pds_xIsPC, r2_pds_zIsImm} !== {e.xPc, e.zImm})
+        fail("chk_opsel", $sformatf("xIsPC zIsImm %b", {r2_pds_xIsPC, r2_pds_zIsImm}));
+      if (r2_pds_xIsZero !== (!e.rs1Use && !e.xPc) || r2_pds_zIsZero !== (!e.rs2Use && !e.zImm))
+        fail("chk_zero", $sformatf("xIsZero zIsZero %b", {r2_pds_xIsZero, r2_pds_zIsZero}));
       if (e.cls[CLASS_SHIFT]) begin
-        if ({r2_ds1_shiftRight, r2_ds1_shiftArith} !== {e.shR, e.shA})
-          fail("chk_shift", $sformatf("right arith %b", {r2_ds1_shiftRight, r2_ds1_shiftArith}));
-        if (r2_ds1_immediate[4:0] !== e.imm[4:0])
-          fail("chk_imm", $sformatf("shamt %0d exp %0d", r2_ds1_immediate[4:0], e.imm[4:0]));
+        if ({r2_pds_shiftRight, r2_pds_shiftArith} !== {e.shR, e.shA})
+          fail("chk_shift", $sformatf("right arith %b", {r2_pds_shiftRight, r2_pds_shiftArith}));
+        if (r2_pds_immediate[4:0] !== e.imm[4:0])
+          fail("chk_imm", $sformatf("shamt %0d exp %0d", r2_pds_immediate[4:0], e.imm[4:0]));
       end
       if ((e.cls & ((1 << CLASS_ALU) | (1 << CLASS_SLT) | (1 << CLASS_LOAD) | (1 << CLASS_STORE)
-                  | (1 << CLASS_JALR) | (1 << CLASS_CSR))) != 0 && r2_ds1_immediate !== e.imm)
-        fail("chk_imm", $sformatf("imm %h exp %h", r2_ds1_immediate, e.imm));
+                  | (1 << CLASS_JALR) | (1 << CLASS_CSR))) != 0 && r2_pds_immediate !== e.imm)
+        fail("chk_imm", $sformatf("imm %h exp %h", r2_pds_immediate, e.imm));
       if ((e.cls & ((1 << CLASS_LOAD) | (1 << CLASS_STORE) | (1 << CLASS_BRANCH) | (1 << CLASS_MUL)
-                  | (1 << CLASS_DIV) | (1 << CLASS_CSR))) != 0 && r2_ds1_func3 !== e.f3)
-        fail("chk_f3", $sformatf("f3 %b exp %b", r2_ds1_func3, e.f3));
-      if (e.cls[CLASS_BRANCH] && {r2_ds1_branchUseLt, r2_ds1_branchInvert} !== {e.f3[2], e.f3[0]})
-        fail("chk_branch", $sformatf("useLt invert %b", {r2_ds1_branchUseLt, r2_ds1_branchInvert}));
-      if (e.cls[CLASS_MUL] && {r2_ds1_mulSignedA, r2_ds1_mulSignedB, r2_ds1_mulHigh}
+                  | (1 << CLASS_DIV) | (1 << CLASS_CSR))) != 0 && r2_pds_func3 !== e.f3)
+        fail("chk_f3", $sformatf("f3 %b exp %b", r2_pds_func3, e.f3));
+      if (e.cls[CLASS_BRANCH] && {r2_pds_branchUseLt, r2_pds_branchInvert} !== {e.f3[2], e.f3[0]})
+        fail("chk_branch", $sformatf("useLt invert %b", {r2_pds_branchUseLt, r2_pds_branchInvert}));
+      if (e.cls[CLASS_MUL] && {r2_pds_mulSignedA, r2_pds_mulSignedB, r2_pds_mulHigh}
           !== {e.f3 == 3'b001 || e.f3 == 3'b010, e.f3 == 3'b001, e.f3 != 3'b000})
         fail("chk_mul", $sformatf("sA sB hi %b f3 %b",
-             {r2_ds1_mulSignedA, r2_ds1_mulSignedB, r2_ds1_mulHigh}, e.f3));
-      if (e.cls[CLASS_DIV] && {r2_ds1_divSigned, r2_ds1_divRemainder}
+             {r2_pds_mulSignedA, r2_pds_mulSignedB, r2_pds_mulHigh}, e.f3));
+      if (e.cls[CLASS_DIV] && {r2_pds_divSigned, r2_pds_divRemainder}
           !== {e.f3 == 3'b100 || e.f3 == 3'b110, e.f3[1]})
         fail("chk_div", $sformatf("signed rem %b f3 %b",
-             {r2_ds1_divSigned, r2_ds1_divRemainder}, e.f3));
+             {r2_pds_divSigned, r2_pds_divRemainder}, e.f3));
     end
   end
 
@@ -426,7 +427,7 @@ module decoder_tb;
     d_r1_branchTarget = 31'($urandom);
     d_r1_seq          = 31'($urandom);
     stall_r1_r2       = st1;
-    stall_r2_ds1      = st2;
+    stall_r2_pds      = st2;
   endtask
 
   int unsigned seed = 1;
@@ -458,7 +459,7 @@ module decoder_tb;
     drive(32'h0000_0013, 1'b0, 1'b0, 1'b0);
     @(negedge clk);
 
-    $display("checked %0d legal, %0d illegal, held r1/r2 %0d, held r2/ds1 %0d",
+    $display("checked %0d legal, %0d illegal, held r1/r2 %0d, held r2/pds %0d",
              nChk, nIll, nHeld1, nHeld2);
     $display("class counts %p, system counts %p", nClass, nSys);
     cov = nHeld1 != 0 && nHeld2 != 0 && nIll != 0;

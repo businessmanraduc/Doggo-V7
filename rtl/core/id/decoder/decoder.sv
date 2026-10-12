@@ -1,8 +1,8 @@
 // ================================================================================
 //  Main Decoder: rest of the decode over R1 and R2, beside rename
 // ================================================================================
-//  D               R1            R2              DS1
-//  predecoder ─┬─► rename R1 ──► rename R2 ──┬─► DS1
+//  D               RD1           RD2             PreDS
+//  predecoder ─┬─► rename R1 ──► rename R2 ──┬─► predisp
 //              └─► decoder R1 ─► decoder R2 ─┘
 // ================================================================================
 //  Everything the predecoder left out: class, latency group, execute controls
@@ -39,41 +39,41 @@ module decoder #(
   input  logic [30:0]          d_r1_seq,
   // ---- inter-stage pipeline register controls ----------------------------------
   input  logic                 stall_r1_r2,
-  input  logic                 stall_r2_ds1,
+  input  logic                 stall_r2_pds,
   // ---- Rename-2/Dispatch-1 inter-stage pipeline register -----------------------
-  output logic [30:0]          r2_ds1_pc,
-  output logic [MW-1:0]        r2_ds1_meta,
-  output logic                 r2_ds1_isCall,
-  output logic                 r2_ds1_isRet,
-  output logic [30:0]          r2_ds1_branchTarget,
-  output logic [30:0]          r2_ds1_seq,
-  output logic [CLASS_W-1:0]   r2_ds1_class,
-  output logic [LATENCY_W-1:0] r2_ds1_latency,
-  output logic                 r2_ds1_sub,          // sub, slt, sltu, branch
-  output logic                 r2_ds1_selArith,
-  output logic                 r2_ds1_selAnd,
-  output logic                 r2_ds1_selOr,
-  output logic                 r2_ds1_selXor,
-  output logic                 r2_ds1_selSlt,
-  output logic                 r2_ds1_sltUnsigned,  // sltu, sltiu, bltu, bgeu
-  output logic                 r2_ds1_shiftRight,
-  output logic                 r2_ds1_shiftArith,
-  output logic                 r2_ds1_xIsPC,
-  output logic                 r2_ds1_xIsZero,
-  output logic                 r2_ds1_zIsImm,
-  output logic                 r2_ds1_zIsZero,
-  output logic                 r2_ds1_branchUseLt,  // lt, else eq
-  output logic                 r2_ds1_branchInvert,
-  output logic                 r2_ds1_mulSignedA,
-  output logic                 r2_ds1_mulSignedB,
-  output logic                 r2_ds1_mulHigh,
-  output logic                 r2_ds1_divSigned,
-  output logic                 r2_ds1_divRemainder,
-  output logic [2:0]           r2_ds1_func3,
-  output logic [SYSTEM_W-1:0]  r2_ds1_system,
-  output logic                 r2_ds1_serialising,  // csr/system wait for the head
-  output logic [31:0]          r2_ds1_immediate,    // csr: {zimm, addr} in [16:0]
-  output logic                 r2_ds1_illegal
+  output logic [30:0]          r2_pds_pc,
+  output logic [MW-1:0]        r2_pds_meta,
+  output logic                 r2_pds_isCall,
+  output logic                 r2_pds_isRet,
+  output logic [30:0]          r2_pds_branchTarget,
+  output logic [30:0]          r2_pds_seq,
+  output logic [CLASS_W-1:0]   r2_pds_class,
+  output logic [LATENCY_W-1:0] r2_pds_latency,
+  output logic                 r2_pds_sub,          // sub, slt, sltu, branch
+  output logic                 r2_pds_selArith,
+  output logic                 r2_pds_selAnd,
+  output logic                 r2_pds_selOr,
+  output logic                 r2_pds_selXor,
+  output logic                 r2_pds_selSlt,
+  output logic                 r2_pds_sltUnsigned,  // sltu, sltiu, bltu, bgeu
+  output logic                 r2_pds_shiftRight,
+  output logic                 r2_pds_shiftArith,
+  output logic                 r2_pds_xIsPC,
+  output logic                 r2_pds_xIsZero,
+  output logic                 r2_pds_zIsImm,
+  output logic                 r2_pds_zIsZero,
+  output logic                 r2_pds_branchUseLt,  // lt, else eq
+  output logic                 r2_pds_branchInvert,
+  output logic                 r2_pds_mulSignedA,
+  output logic                 r2_pds_mulSignedB,
+  output logic                 r2_pds_mulHigh,
+  output logic                 r2_pds_divSigned,
+  output logic                 r2_pds_divRemainder,
+  output logic [2:0]           r2_pds_func3,
+  output logic [SYSTEM_W-1:0]  r2_pds_system,
+  output logic                 r2_pds_serialising,  // csr/system wait for the head
+  output logic [31:0]          r2_pds_immediate,    // csr: {zimm, addr} in [16:0]
+  output logic                 r2_pds_illegal
 );
 
   // ---- 32-bit opcodes (instr[6:2]) ---------------------------------------------
@@ -433,40 +433,40 @@ module decoder #(
 
   // ---- Rename-2/Dispatch-1 inter-stage pipeline register -----------------------
   always_ff @(posedge clk) begin
-    if (!stall_r2_ds1) begin
-      r2_ds1_pc           <= r1_r2_pc;
-      r2_ds1_meta         <= r1_r2_meta;
-      r2_ds1_isCall       <= r1_r2_isCall;
-      r2_ds1_isRet        <= r1_r2_isRet;
-      r2_ds1_branchTarget <= r1_r2_branchTarget;
-      r2_ds1_seq          <= r1_r2_seq;
-      r2_ds1_class        <= r2_class;
-      r2_ds1_latency      <= r2_latency;
-      r2_ds1_sub          <= r1_r2_sub;
-      r2_ds1_selArith     <= r1_r2_selArith;
-      r2_ds1_selAnd       <= r1_r2_selAnd;
-      r2_ds1_selOr        <= r1_r2_selOr;
-      r2_ds1_selXor       <= r1_r2_selXor;
-      r2_ds1_selSlt       <= r1_r2_selSlt;
-      r2_ds1_sltUnsigned  <= r1_r2_sltUnsigned;
-      r2_ds1_shiftRight   <= r1_r2_shiftRight;
-      r2_ds1_shiftArith   <= r1_r2_shiftArith;
-      r2_ds1_xIsPC        <= r1_r2_xIsPC;
-      r2_ds1_xIsZero      <= r1_r2_xIsZero;
-      r2_ds1_zIsImm       <= r1_r2_zIsImm;
-      r2_ds1_zIsZero      <= r1_r2_zIsZero;
-      r2_ds1_branchUseLt  <= r1_r2_func3[2];
-      r2_ds1_branchInvert <= r1_r2_func3[0];
-      r2_ds1_mulSignedA   <= r1_r2_func3[1] ^ r1_r2_func3[0]; // mulh, mulhsu
-      r2_ds1_mulSignedB   <= r1_r2_func3[1:0] == 2'b01;       // mulh
-      r2_ds1_mulHigh      <= r1_r2_func3[1:0] != 2'b00;
-      r2_ds1_divSigned    <= !r1_r2_func3[0];
-      r2_ds1_divRemainder <= r1_r2_func3[1];
-      r2_ds1_func3        <= r1_r2_func3;
-      r2_ds1_system       <= r2_system;
-      r2_ds1_serialising  <= r2_class[CLASS_CSR] || r2_class[CLASS_SYSTEM];
-      r2_ds1_immediate    <= r2_immediate;
-      r2_ds1_illegal      <= r1_r2_illegal;
+    if (!stall_r2_pds) begin
+      r2_pds_pc           <= r1_r2_pc;
+      r2_pds_meta         <= r1_r2_meta;
+      r2_pds_isCall       <= r1_r2_isCall;
+      r2_pds_isRet        <= r1_r2_isRet;
+      r2_pds_branchTarget <= r1_r2_branchTarget;
+      r2_pds_seq          <= r1_r2_seq;
+      r2_pds_class        <= r2_class;
+      r2_pds_latency      <= r2_latency;
+      r2_pds_sub          <= r1_r2_sub;
+      r2_pds_selArith     <= r1_r2_selArith;
+      r2_pds_selAnd       <= r1_r2_selAnd;
+      r2_pds_selOr        <= r1_r2_selOr;
+      r2_pds_selXor       <= r1_r2_selXor;
+      r2_pds_selSlt       <= r1_r2_selSlt;
+      r2_pds_sltUnsigned  <= r1_r2_sltUnsigned;
+      r2_pds_shiftRight   <= r1_r2_shiftRight;
+      r2_pds_shiftArith   <= r1_r2_shiftArith;
+      r2_pds_xIsPC        <= r1_r2_xIsPC;
+      r2_pds_xIsZero      <= r1_r2_xIsZero;
+      r2_pds_zIsImm       <= r1_r2_zIsImm;
+      r2_pds_zIsZero      <= r1_r2_zIsZero;
+      r2_pds_branchUseLt  <= r1_r2_func3[2];
+      r2_pds_branchInvert <= r1_r2_func3[0];
+      r2_pds_mulSignedA   <= r1_r2_func3[1] ^ r1_r2_func3[0]; // mulh, mulhsu
+      r2_pds_mulSignedB   <= r1_r2_func3[1:0] == 2'b01;       // mulh
+      r2_pds_mulHigh      <= r1_r2_func3[1:0] != 2'b00;
+      r2_pds_divSigned    <= !r1_r2_func3[0];
+      r2_pds_divRemainder <= r1_r2_func3[1];
+      r2_pds_func3        <= r1_r2_func3;
+      r2_pds_system       <= r2_system;
+      r2_pds_serialising  <= r2_class[CLASS_CSR] || r2_class[CLASS_SYSTEM];
+      r2_pds_immediate    <= r2_immediate;
+      r2_pds_illegal      <= r1_r2_illegal;
     end
   end
 

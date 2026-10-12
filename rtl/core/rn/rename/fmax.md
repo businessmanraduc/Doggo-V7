@@ -18,12 +18,12 @@ tools: Yosys 0.62, nextpnr-35f1433
 | 5 | 157.80 | u_dut.fl_tail        -> u_dut.rn_hold |
 | 6 | 149.23 | u_dut.fl_tail        -> u_dut.rn_hold |
 | 7 | 156.35 | u_dut.d_r1_isJalr    -> u_dut.fl_headTag |
-| 8 | 154.46 | u_dut.stall_r2_ds1   -> u_dut.fl_headTag |
+| 8 | 154.46 | u_dut.stall_r2_pds   -> u_dut.fl_headTag |
 | 9 | 152.44 | u_dut.fl_head        -> u_dut.rn_hold |
 | 10 | 148.24 | u_dut.fl_tail        -> u_dut.rn_hold |
 | 11 | 155.64 | u_dut.fl_tail        -> u_dut.rn_hold |
 | 12 | 162.55 | u_dut.fl_head        -> u_dut.rn_hold |
-| 13 | 148.24 | u_dut.stall_r2_ds1   -> u_dut.fl_headTag |
+| 13 | 148.24 | u_dut.stall_r2_pds   -> u_dut.fl_headTag |
 | 14 | 156.99 | u_dut.fl_tail        -> u_dut.rn_hold |
 | 15 | 147.10 | u_dut.fl_tail        -> u_dut.rn_hold |
 | 16 | 160.05 | u_dut.fl_head        -> u_dut.fl_headTag |
