@@ -1,5 +1,5 @@
 // ================================================================================
-//  uop_defs -- bit indices of the one-hot uop vectors made by dec_r
+//  uop_defs: bit indices of the one-hot uop vectors made by dec_r
 // ================================================================================
 //  Included at file scope, before the module itself.
 // ================================================================================

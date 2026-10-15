@@ -68,7 +68,9 @@ module predisp (
   output logic [7:0]           pds_ds_depL4,
   output logic [7:0]           pds_ds_depL5,
   output logic                 pds_ds_rs1Wait,      // producers outstanding
-  output logic                 pds_ds_rs2Wait
+  output logic                 pds_ds_rs2Wait,
+  output logic [7:0]           pds_ds_rs1Slot,      // one-hot producer slot per-source
+  output logic [7:0]           pds_ds_rs2Slot
 );
 
   // ---- kill & resolve ----------------------------------------------------------
@@ -151,6 +153,8 @@ module predisp (
                     | (pds_ds_depL4 & iq_wakeL4)        | (pds_ds_depL5 & iq_wakeL5);
   assign pds_woken1 = |(pds_rs1Slot & pds_woken);
   assign pds_woken2 = |(pds_rs2Slot & pds_woken);
+  assign pds_ds_rs1Slot = pds_rs1Slot;
+  assign pds_ds_rs2Slot = pds_rs2Slot;
 
   // ---- Dispatch-1/Dispatch inter-stage pipeline regsiter -----------------------
   always_ff @(posedge clk) begin

@@ -14,6 +14,7 @@
 //   cycle. staleVectors (0053): held vectors keep bits whose wake fired, the
 //   flags do not.
 //   The IQ model clears a slot's column on reuse and never sets a row's own.
+//   - chk_slot: a waiting source names its producer's slot (0055).
 //   - chk_valid, chk_pass, chk_bmask, chk_stall: register and control.
 //  Phases: realistic, stall-heavy (held upkeep), kill-heavy; reset each phase.
 // ================================================================================
@@ -50,6 +51,7 @@ module predisp_tb;
   logic [LATENCY_W-1:0] pds_ds_latency;
   logic [7:0]           pds_ds_depL1, pds_ds_depL3, pds_ds_depL4, pds_ds_depL5;
   logic                 pds_ds_rs1Wait, pds_ds_rs2Wait;
+  logic [7:0]           pds_ds_rs1Slot, pds_ds_rs2Slot;
   logic [1:0]           pds_ds_waitCount;
   assign pds_ds_waitCount = 2'(pds_ds_rs1Wait) + 2'(pds_ds_rs2Wait);
 
@@ -362,6 +364,10 @@ module predisp_tb;
         fail("chk_vector", $sformatf("uop %0d L1 %b/%b L3 %b/%b L4 %b/%b L5 %b/%b", dsId,
              pds_ds_depL1, e1, pds_ds_depL3, e3, pds_ds_depL4, e4, pds_ds_depL5, e5));
       if (pds_ds_waitCount != ecnt) fail("chk_count", $sformatf("uop %0d count %0d exp %0d", dsId, pds_ds_waitCount, ecnt));
+      if (pds_ds_rs1Wait && (ps[0] < 0 || pds_ds_rs1Slot != 8'(1) << u[ps[0]].slot))
+        fail("chk_slot", $sformatf("uop %0d rs1Slot %b", dsId, pds_ds_rs1Slot));
+      if (pds_ds_rs2Wait && (ps[1] < 0 || pds_ds_rs2Slot != 8'(1) << u[ps[1]].slot))
+        fail("chk_slot", $sformatf("uop %0d rs2Slot %b", dsId, pds_ds_rs2Slot));
       if (vis[tail]) fail("chk_bench", "tail slot visible");
 
       clr = (pds_ds_depL1 & (gPrev | gNow)) | (pds_ds_depL3 & w3) | (pds_ds_depL4 & w4) | (pds_ds_depL5 & w5);
