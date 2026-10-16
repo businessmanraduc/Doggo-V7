@@ -18,6 +18,7 @@ include flow/toolcheck.mk
 
 sim:
 	verilator --binary --timing -j 0 -I$(INC) -Mdir $(BUILD) --top-module $(TOP) $(SRCS)
+	@rm -f $(BUILD)/*.gch
 	@$(BUILD)/V$(TOP)
 
 clean:

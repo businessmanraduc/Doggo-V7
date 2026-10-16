@@ -1,9 +1,9 @@
 // ================================================================================
 //  Pre-Dispatcher: source tags to IQ slot vectors
 // ================================================================================
-//  RD2             PreDS                      DS
-//  rename R2 ──┬─► predisp (tag -> slot) ───► dispatch (IQ/ROB write)
-//  decoder R2 ─┘
+//  RD2             PreDS                        DS
+//  rename R2  ───► predisp (tag -> slot) ───┬─► dispatch (IQ/ROB write)
+//  decoder R2 ───► predisp_payload (hold) ──┘
 // ================================================================================
 //  Turns each source tag into a one-hot slot split by producer's latency
 //  group, plug a per-source wait flag. DS copies both into the IQ row.
@@ -20,8 +20,8 @@
 `include "uop_defs.svh"
 
 module predisp (
-  input  logic          clk,
-  input  logic          resetn,
+  input  logic                 clk,
+  input  logic                 resetn,
   // ---- Rename-2/Dispatch-1 inter-stage pipeline register -----------------------
   input  logic                 r2_pds_valid,
   input  logic [5:0]           r2_pds_rs1Tag,
