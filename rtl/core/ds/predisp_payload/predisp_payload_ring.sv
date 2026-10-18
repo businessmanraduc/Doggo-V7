@@ -15,7 +15,7 @@ module predisp_payload_ring (
 );
 
   localparam int MW = 1;
-  localparam int W  = 170 + MW;
+  localparam int W  = 171 + MW;
 
   logic [31:0] s0, s1, s2, s3, s4, s5;
 
@@ -67,6 +67,7 @@ module predisp_payload_ring (
     .r2_pds_serialising  (in[MW+136]),
     .r2_pds_immediate    (in[MW+137 +: 32]),
     .r2_pds_illegal      (in[MW+169]),
+    .r2_pds_rvc          (in[MW+170]),
     .stall_pds_ds,
     .pds_ds_pc           (out[30:0]),
     .pds_ds_meta         (out[31 +: MW]),
@@ -99,7 +100,8 @@ module predisp_payload_ring (
     .pds_ds_system       (out[MW+130 +: SYSTEM_W]),
     .pds_ds_serialising  (out[MW+136]),
     .pds_ds_immediate    (out[MW+137 +: 32]),
-    .pds_ds_illegal      (out[MW+169])
+    .pds_ds_illegal      (out[MW+169]),
+    .pds_ds_rvc          (out[MW+170])
   );
 
   xor_sink #(.W(W)) u_snk (.clk, .q, .d(out));

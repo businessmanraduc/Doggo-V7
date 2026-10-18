@@ -24,7 +24,7 @@ module decoder_ring (
 
   logic [30:0]          r2_pds_pc, r2_pds_branchTarget, r2_pds_seq;
   logic [MW-1:0]        r2_pds_meta;
-  logic                 r2_pds_isCall, r2_pds_isRet;
+  logic                 r2_pds_isCall, r2_pds_isRet, r2_pds_rvc;
   logic [CLASS_W-1:0]   r2_pds_class;
   logic [LATENCY_W-1:0] r2_pds_latency;
   logic                 r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor;
@@ -54,7 +54,7 @@ module decoder_ring (
     .stall_r1_r2       (ctl[5]),
     .stall_r2_pds      (ctl[6]),
     .r2_pds_pc, .r2_pds_meta, .r2_pds_isCall, .r2_pds_isRet, .r2_pds_branchTarget, .r2_pds_seq,
-    .r2_pds_class, .r2_pds_latency, .r2_pds_sub, .r2_pds_selArith, .r2_pds_selAnd,
+    .r2_pds_rvc, .r2_pds_class, .r2_pds_latency, .r2_pds_sub, .r2_pds_selArith, .r2_pds_selAnd,
     .r2_pds_selOr, .r2_pds_selXor, .r2_pds_selSlt, .r2_pds_sltUnsigned, .r2_pds_shiftRight,
     .r2_pds_shiftArith, .r2_pds_xIsPC, .r2_pds_xIsZero, .r2_pds_zIsImm, .r2_pds_zIsZero,
     .r2_pds_branchUseLt, .r2_pds_branchInvert, .r2_pds_mulSignedA, .r2_pds_mulSignedB,
@@ -62,9 +62,9 @@ module decoder_ring (
     .r2_pds_serialising, .r2_pds_immediate, .r2_pds_illegal
   );
 
-  xor_sink #(.W(179)) u_snk (.clk, .q, .d({
+  xor_sink #(.W(180)) u_snk (.clk, .q, .d({
     r2_pds_pc, r2_pds_meta, r2_pds_isCall, r2_pds_isRet, r2_pds_branchTarget, r2_pds_seq,
-    r2_pds_class, r2_pds_latency, r2_pds_sub, r2_pds_selArith, r2_pds_selAnd,
+    r2_pds_rvc, r2_pds_class, r2_pds_latency, r2_pds_sub, r2_pds_selArith, r2_pds_selAnd,
     r2_pds_selOr, r2_pds_selXor, r2_pds_selSlt, r2_pds_sltUnsigned, r2_pds_shiftRight,
     r2_pds_shiftArith, r2_pds_xIsPC, r2_pds_xIsZero, r2_pds_zIsImm, r2_pds_zIsZero,
     r2_pds_branchUseLt, r2_pds_branchInvert, r2_pds_mulSignedA, r2_pds_mulSignedB,

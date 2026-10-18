@@ -23,6 +23,7 @@ module predisp_payload_tb;
     logic                 isRet;
     logic [30:0]          branchTarget;
     logic [30:0]          seq;
+    logic                 rvc;
     logic [CLASS_W-1:0]   class_;
     logic                 sub;
     logic                 selArith;
@@ -65,6 +66,7 @@ module predisp_payload_tb;
     .r2_pds_isRet        (in.isRet),
     .r2_pds_branchTarget (in.branchTarget),
     .r2_pds_seq          (in.seq),
+    .r2_pds_rvc          (in.rvc),
     .r2_pds_class        (in.class_),
     .r2_pds_sub          (in.sub),
     .r2_pds_selArith     (in.selArith),
@@ -98,6 +100,7 @@ module predisp_payload_tb;
     .pds_ds_isRet        (out.isRet),
     .pds_ds_branchTarget (out.branchTarget),
     .pds_ds_seq          (out.seq),
+    .pds_ds_rvc          (out.rvc),
     .pds_ds_class        (out.class_),
     .pds_ds_sub          (out.sub),
     .pds_ds_selArith     (out.selArith),
@@ -152,6 +155,7 @@ module predisp_payload_tb;
     `CHK_FIELD(isRet)
     `CHK_FIELD(branchTarget)
     `CHK_FIELD(seq)
+    `CHK_FIELD(rvc)
     `CHK_FIELD(class_)
     `CHK_FIELD(sub)
     `CHK_FIELD(selArith)

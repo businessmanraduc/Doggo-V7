@@ -47,6 +47,7 @@ module decoder #(
   output logic                 r2_pds_isRet,
   output logic [30:0]          r2_pds_branchTarget,
   output logic [30:0]          r2_pds_seq,
+  output logic                 r2_pds_rvc,
   output logic [CLASS_W-1:0]   r2_pds_class,
   output logic [LATENCY_W-1:0] r2_pds_latency,
   output logic                 r2_pds_sub,          // sub, slt, sltu, branch
@@ -350,6 +351,7 @@ module decoder #(
   logic [30:0]          r1_r2_pc, r1_r2_branchTarget, r1_r2_seq;
   logic [MW-1:0]        r1_r2_meta;
   logic                 r1_r2_isCall, r1_r2_isRet;
+  logic                 r1_r2_rvc;
   logic [CLASS_W-1:0]   r1_r2_class;
   logic [SYSTEM_W-1:0]  r1_r2_system;
   logic [IMM_W-1:0]     r1_r2_immFormat;
@@ -368,6 +370,7 @@ module decoder #(
       r1_r2_isRet        <= d_r1_isRet;
       r1_r2_branchTarget <= d_r1_branchTarget;
       r1_r2_seq          <= d_r1_seq;
+      r1_r2_rvc          <= r1_rvc;
       r1_r2_class        <= r1_class;
       r1_r2_system       <= r1_system;
       r1_r2_immFormat    <= r1_immFormat;
@@ -440,6 +443,7 @@ module decoder #(
       r2_pds_isRet        <= r1_r2_isRet;
       r2_pds_branchTarget <= r1_r2_branchTarget;
       r2_pds_seq          <= r1_r2_seq;
+      r2_pds_rvc          <= r1_r2_rvc;
       r2_pds_class        <= r2_class;
       r2_pds_latency      <= r2_latency;
       r2_pds_sub          <= r1_r2_sub;

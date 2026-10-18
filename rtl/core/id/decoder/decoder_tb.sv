@@ -32,7 +32,7 @@ module decoder_tb;
   logic                 stall_r2_pds = 1'b0;
   logic [30:0]          r2_pds_pc, r2_pds_branchTarget, r2_pds_seq;
   logic [MW-1:0]        r2_pds_meta;
-  logic                 r2_pds_isCall, r2_pds_isRet;
+  logic                 r2_pds_isCall, r2_pds_isRet, r2_pds_rvc;
   logic [CLASS_W-1:0]   r2_pds_class;
   logic [LATENCY_W-1:0] r2_pds_latency;
   logic                 r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor;
@@ -330,9 +330,10 @@ module decoder_tb;
     e = m_r2pds.r;
     nHeld1 += int'(stall_r1_r2);
     nHeld2 += int'(stall_r2_pds);
-    if ({r2_pds_pc, r2_pds_branchTarget, r2_pds_seq, r2_pds_meta, r2_pds_isCall, r2_pds_isRet}
+    if ({r2_pds_pc, r2_pds_branchTarget, r2_pds_seq, r2_pds_meta, r2_pds_isCall, r2_pds_isRet,
+         r2_pds_rvc}
         !== {m_r2pds.pc, m_r2pds.branchTarget, m_r2pds.seq, m_r2pds.meta, m_r2pds.isCall,
-             m_r2pds.isRet})
+             m_r2pds.isRet, m_r2pds.rvc})
       fail("chk_pass", "pass-through fields");
     if (r2_pds_illegal !== !e.legal) fail("chk_illegal", $sformatf("illegal %0d", r2_pds_illegal));
     if (!e.legal) begin

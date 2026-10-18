@@ -20,6 +20,7 @@ module predisp_payload #(
   input  logic                 r2_pds_isRet,
   input  logic [30:0]          r2_pds_branchTarget,
   input  logic [30:0]          r2_pds_seq,
+  input  logic                 r2_pds_rvc,
   input  logic [CLASS_W-1:0]   r2_pds_class,
   input  logic                 r2_pds_sub,          // sub, slt, sltu, branch
   input  logic                 r2_pds_selArith,
@@ -55,6 +56,7 @@ module predisp_payload #(
   output logic                 pds_ds_isRet,
   output logic [30:0]          pds_ds_branchTarget,
   output logic [30:0]          pds_ds_seq,
+  output logic                 pds_ds_rvc,
   output logic [CLASS_W-1:0]   pds_ds_class,
   output logic                 pds_ds_sub,          // sub, slt, sltu, branch
   output logic                 pds_ds_selArith,
@@ -91,6 +93,7 @@ module predisp_payload #(
       pds_ds_isRet        <= r2_pds_isRet;
       pds_ds_branchTarget <= r2_pds_branchTarget;
       pds_ds_seq          <= r2_pds_seq;
+      pds_ds_rvc          <= r2_pds_rvc;
       pds_ds_class        <= r2_pds_class;
       pds_ds_sub          <= r2_pds_sub;
       pds_ds_selArith     <= r2_pds_selArith;
