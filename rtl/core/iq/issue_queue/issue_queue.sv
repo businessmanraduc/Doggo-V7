@@ -31,7 +31,7 @@ module issue_queue #(
   input  logic                 clk,
   input  logic                 resetn,
   // ---- dispatch: the Dispatch-1/Dispatch register and the fire -----------------
-  input  logic                 ds_fire,
+  input  logic                 ds_iqGo,               // DS uop goes to IQ if tail free
   input  logic [N-1:0]         pds_ds_depL1,
   input  logic [N-1:0]         pds_ds_depL3,
   input  logic [N-1:0]         pds_ds_depL4,
@@ -47,7 +47,7 @@ module issue_queue #(
   input  logic [LATENCY_W-1:0] pds_ds_latency,
   input  logic                 pds_ds_rdWriteEnable,
   input  logic [3:0]           pds_ds_branchMask,
-output logic                 iq_dispatchReady,      // tail slot free
+  output logic                 iq_dispatchReady,      // tail slot free
   // ---- sd slot, one cycle ahead of empty select cycle --------------------------
   input  logic                 sd_steal,
   input  logic                 sd_divWake,
@@ -75,12 +75,18 @@ output logic                 iq_dispatchReady,      // tail slot free
   logic         iq_mispredict;
   logic [3:0]   iq_resolveClear;
   logic [N-1:0] iq_kill;
+  logic [N-1:0] iq_tailOneHot;
+  logic         iq_dispatchReadyQ;
+  logic [N-1:0] iq_tailFree;
+  logic         iq_fire;
   logic [3:0]   iq_branchMask [N];
 
   assign iq_mispredict   = ex_resolveValid & ex_resolveMispredict;
   assign iq_resolveClear = ex_resolveValid ? 4'(1) << ex_resolveSnapshot : 4'b0;
   for (genvar k = 0; k < N; k++) begin : g_kill
-    assign iq_kill[k] = cm_flush | (iq_mispredict & iq_branchMask[k][ex_resolveSnapshot]);
+    assign iq_kill[k] = cm_flush | (iq_mispredict & (
+      iq_branchMask[k][ex_resolveSnapshot] | iq_tailFree[k]
+    ));
   end
 
   // ---- row state ---------------------------------------------------------------
@@ -98,13 +104,14 @@ output logic                 iq_dispatchReady,      // tail slot free
   end
 
   // ---- tail, dispatch select ---------------------------------------------------
-  logic [N-1:0] iq_tailOneHot, iq_tailOneHotNext;
+  logic [N-1:0] iq_tailOneHotNext;
   logic [N-1:0] iq_tailMask,   iq_tailMaskNext;
   logic [N-1:0] iq_dispatchSelect;
 
-  assign iq_tailOneHotNext = ds_fire ? {iq_tailOneHot[N-2:0], iq_tailOneHot[N-1]}             : iq_tailOneHot;
-  assign iq_tailMaskNext   = ds_fire ? (iq_tailOneHot[N-1] ? '1 : {iq_tailMask[N-2:0], 1'b0}) : iq_tailMask;
-  assign iq_dispatchSelect = ds_fire ? iq_tailOneHot : '0;
+  assign iq_fire           = ds_iqGo & iq_dispatchReadyQ;
+  assign iq_tailOneHotNext = iq_fire ? {iq_tailOneHot[N-2:0], iq_tailOneHot[N-1]}             : iq_tailOneHot;
+  assign iq_tailMaskNext   = iq_fire ? (iq_tailOneHot[N-1] ? '1 : {iq_tailMask[N-2:0], 1'b0}) : iq_tailMask;
+  assign iq_dispatchSelect = {N{ds_iqGo}} & iq_tailFree;
   assign iq_tailSlot       = iq_tailOneHot;
 
   // ---- chain inputs: ready, tail mask (upper copy), open (lower copy) ----------
@@ -309,7 +316,7 @@ output logic                 iq_dispatchReady,      // tail slot free
     (iq_dispatched & {N{iq_dispatchLate1}}) | (~iq_dispatched & iq_rowLate)
   );
   assign iq_lateWake2 = (
-    (iq_dispatched & {N{iq_dispatchLate2}}) | (~iq_dispatched & iq_rowLate2 & iq_waiting)
+    ((iq_dispatched & {N{iq_dispatchLate2}}) | (~iq_dispatched & iq_rowLate2)) & iq_waiting
   );
 
   // ---- next state: 1 dispatch/2 late wakes use the override half ---------------
@@ -328,7 +335,7 @@ output logic                 iq_dispatchReady,      // tail slot free
   // ---- windows: reuse after last wake, visible for 1-2 more cycles -------------
   logic [N-1:0] iq_reuseHold1, iq_reuseHold2, iq_visibleHold2;
   always_ff @(posedge clk) begin
-if (!resetn) begin
+    if (!resetn) begin
       iq_reuseHold1   <= '0;
       iq_reuseHold2   <= '0;
       iq_visibleHold2 <= '0;
@@ -341,7 +348,6 @@ if (!resetn) begin
   assign iq_visible = iq_occupied | iq_reuseHold1 | iq_visibleHold2;
 
   // ---- state registers ---------------------------------------------------------
-  logic iq_dispatchReadyQ;
   assign iq_dispatchReady = iq_dispatchReadyQ;
 
   always_ff @(posedge clk) begin
@@ -351,6 +357,7 @@ if (!resetn) begin
       iq_tailOneHot     <= N'(1);
       iq_tailMask       <= '1;
       iq_dispatchReadyQ <= 1'b1;
+      iq_tailFree       <= N'(1);
     end else begin
       for (int k = 0; k < N; k++) begin
         iq_count[k] <= iq_kill[k] ? 2'd3 : iq_countNext[k];
@@ -358,7 +365,8 @@ if (!resetn) begin
       end
       iq_tailOneHot     <= iq_tailOneHotNext;
       iq_tailMask       <= iq_tailMaskNext;
-      iq_dispatchReadyQ <= ~|(iq_tailOneHotNext & (iq_occupied | iq_reuseHold1 | iq_reuseHold2));
+      iq_dispatchReadyQ <= ~|(iq_tailOneHotNext &  (iq_occupied | iq_reuseHold1 | iq_reuseHold2));
+      iq_tailFree       <= iq_tailOneHotNext    & ~(iq_occupied | iq_reuseHold1 | iq_reuseHold2);
     end
   end
 

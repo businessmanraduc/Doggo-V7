@@ -3,8 +3,8 @@
 //  slot-sd units
 // ================================================================================
 //  The bench plays rename (8 architectural registers, 64 tags, free FIFO,
-//  4 branch snapshots with masks), DS (fire = valid, IQ ready, ROB credit,
-//  no kill), branch resolve at grant + 4, an in-order ROB of 16, and two
+//  4 branch snapshots with masks), DS (ds_iqGo = valid, ROB credit; fire =
+//  ds_iqGo and IQ ready, also in kill cycles: the row is written and dies), branch resolve at grant + 4, an in-order ROB of 16, and two
 //  slot-sd producers (divide, pending word: one outstanding each, delivered
 //  through steal + wake). Every uop records its producers by tag at rename.
 //  Checks:
@@ -15,7 +15,8 @@
 //   - chk_tail, chk_visible, chk_grantPrevious, chk_wake, chk_ready: the
 //   exports to predisp and DS against the 0054 windows.
 //   - chk_drain: with no new uops, everything commits.
-//  Phases: realistic, stall-heavy, kill-heavy, slot-sd heavy; reset each.
+//  Phases: realistic, stall-heavy, kill-heavy, slot-sd heavy, dense
+//  mispredicts (rows die as they are written); reset each.
 // ================================================================================
 
 `include "uop_defs.svh"
@@ -54,14 +55,15 @@ module issue_queue_tb;
   logic                 pds_ds_rs1FromDiv = 1'b0, pds_ds_rs1FromMiss = 1'b0;
   logic                 pds_ds_rs2FromDiv = 1'b0, pds_ds_rs2FromMiss = 1'b0;
   logic                 iqRs1Wait, iqRs2Wait;
-  logic                 ds_fire, iq_dispatchReady;
+  logic                 ds_fire, ds_iqGo, iq_dispatchReady;
   logic                 sd_steal = 1'b0, sd_divWake = 1'b0, sd_missWake = 1'b0;
   logic [N-1:0]         is_pr_grant;
   logic [3:0]           iq_grantBranchMask;
   logic                 robCredit = 1'b0, killNow = 1'b0;
 
   assign stall_pds_ds = pds_ds_valid & !(iq_dispatchReady & robCredit);
-  assign ds_fire      = pds_ds_valid & iq_dispatchReady & robCredit & !killNow;
+  assign ds_iqGo      = pds_ds_valid & robCredit;
+  assign ds_fire      = ds_iqGo & iq_dispatchReady;
 
   predisp u_pds (.*);
   assign iqRs1Wait = pds_ds_rs1Wait | pds_ds_rs1FromDiv | pds_ds_rs1FromMiss;
@@ -404,6 +406,8 @@ module issue_queue_tb;
       if (g4 >= 0 && u[g4].slot == tail && groupOf(g4) == 5) cov["reuseEdgeL5"]++;
       if (clear & u[dsId].mask) cov["resolveOnDispatch"]++;
       if (tail == N - 1) cov["wrap"]++;
+      if (mis) cov["fireInMispredict"]++;
+      if (flush) cov["fireInFlush"]++;
     end
     if (sd_divWake) cov["divWake"]++;
     if (sd_missWake) cov["missWake"]++;
@@ -519,9 +523,10 @@ module issue_queue_tb;
     phase("kill", cycles, 5, 15, 45, 10, 3, 5, 10);
     phase("slotsd", cycles, 5, 10, 10, 2, 10, 40, 10);
     phase("slowsd", cycles, 5, 10, 5, 1, 12, 10, 40);
+    phase("killfire", 4 * cycles, 0, 5, 90, 0, 3, 5, 10);   // dense mispredicts: rows die as they are written
     foreach (cov[k]) $display("  cov %-20s %0d", k, cov[k]);
     begin
-      string need [20] = '{"tailStall", "steal", "killGranted", "late2", "chainPlusLate", "newHit",
+      string need [22] = '{"fireInMispredict", "fireInFlush", "tailStall", "steal", "killGranted", "late2", "chainPlusLate", "newHit",
                            "grantPrevious", "landNow", "dispatchTerm", "ownColumn", "extNow",
                            "extTerm", "reuseEdgeL4", "reuseEdgeL5", "resolveOnDispatch", "wrap",
                            "divWake", "missWake", "flush", "mispredict"};
