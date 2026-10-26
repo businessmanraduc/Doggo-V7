@@ -9,8 +9,8 @@
 
 // ---- class: which unit executes the uop ----------------------------------------
 localparam int CLASS_ALU    = 0;
-localparam int CLASS_SHIFT  = 1;
-localparam int CLASS_SLT    = 2;
+localparam int CLASS_BITM   = 1;
+localparam int CLASS_XALU   = 2;
 localparam int CLASS_LOAD   = 3;
 localparam int CLASS_STORE  = 4;
 localparam int CLASS_BRANCH = 5;

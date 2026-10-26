@@ -11,7 +11,7 @@
 //  Also carries the D fields that rename doesn't need:
 //    (pc, meta, branchTarget, seq, call/ret)
 //
-//  Purpose:
+//  Mechanism:
 //    - R1: opcode decodification of both encodings (32-bit and 16-bit) in
 //    parallel, merged by rvc, immediate leaves R1 as one-hot format select.
 //    - R2: immediate assembly (AND-OR of formats), illegal gating, latency
@@ -19,6 +19,8 @@
 //    - Payload only: no valid/reset. Rename owns valid/flush; each register
 //    holds while its stall is high.
 //    - Illegal: class + latency + system = 0, uop only traps at the head.
+//    - OP and OP-IMM carry instr[31:20] in immediate -> XALU and BITM FUs
+//    tell their ops apart by func7 and func3.
 // ================================================================================
 `include "uop_defs.svh"
 
@@ -50,7 +52,7 @@ module decoder #(
   output logic                 r2_pds_rvc,
   output logic [CLASS_W-1:0]   r2_pds_class,
   output logic [LATENCY_W-1:0] r2_pds_latency,
-  output logic                 r2_pds_sub,          // sub, slt, sltu, branch
+  output logic                 r2_pds_sub,
   output logic                 r2_pds_selArith,
   output logic                 r2_pds_selAnd,
   output logic                 r2_pds_selOr,
@@ -109,6 +111,8 @@ module decoder #(
   logic [4:0]           w_op;
   logic [2:0]           w_func3;
   logic [6:0]           w_func7;
+  logic [4:0]           w_rs2Field;
+  logic                 w_isOp;
   logic [CLASS_W-1:0]   w_class;
   logic [SYSTEM_W-1:0]  w_system;
   logic [IMM_W-1:0]     w_immFormat;
@@ -116,10 +120,12 @@ module decoder #(
   logic                 w_sltUnsigned, w_shiftRight, w_shiftArith, w_xIsPC, w_zIsImm;
   logic                 w_illegal;
 
-  assign w_instr = d_r1_instr;
-  assign w_op    = w_instr[6:2];
-  assign w_func3 = w_instr[14:12];
-  assign w_func7 = w_instr[31:25];
+  assign w_instr    = d_r1_instr;
+  assign w_op       = w_instr[6:2];
+  assign w_func3    = w_instr[14:12];
+  assign w_func7    = w_instr[31:25];
+  assign w_rs2Field = w_instr[24:20];
+  assign w_isOp     = w_op == OP_OP;
 
   always_comb begin
     w_class     = '0;
@@ -155,40 +161,65 @@ module decoder #(
       end
       OP_IMM, OP_OP: begin
         w_zIsImm           = w_op == OP_IMM;
-        w_immFormat[IMM_I] = w_op == OP_IMM;
-        if (w_op == OP_OP && w_func7 == 7'b0000001) begin
+        w_immFormat[IMM_I] = 1'b1;
+        if (w_isOp && w_func7 == 7'b0000001) begin
           w_class[w_func3[2] ? CLASS_DIV : CLASS_MUL] = 1'b1;
+        end else if (w_isOp && w_func7 == 7'b0010000) begin   // shXadd
+          w_class[CLASS_XALU] = 1'b1;
+          w_illegal = w_func3[0] || w_func3[2:1] == 2'b00;
+        end else if (w_isOp && w_func7 == 7'b0000101) begin   // min/max
+          w_class[CLASS_XALU] = 1'b1; w_sub = 1'b1; w_sltUnsigned = w_func3[0];
+          w_illegal = !w_func3[2];
+        end else if (w_isOp && w_func7 == 7'b0000111) begin   // czero
+          w_class[CLASS_XALU] = 1'b1;
+          w_illegal = !(w_func3[2] && w_func3[0]);
+        end else if ((w_isOp && w_func7 == 7'b0000100) || ((w_isOp || w_func3[1:0] == 2'b01)
+                 && (w_func7 == 7'b0110000 || w_func7 == 7'b0100100
+                 ||  w_func7 == 7'b0110100 || w_func7 == 7'b0010100)
+        )) begin                                              // zext.h
+          w_class[CLASS_BITM] = 1'b1; w_shiftRight = w_func3 == 3'b101;
+          case (w_func7)
+            7'b0110000: w_illegal = w_func3[1:0] != 2'b01     // rol ror clz ctz cpop sext
+              || (!w_isOp && !w_func3[2]  && (w_rs2Field[4:3] != 2'b00
+              || w_rs2Field[1:0] == 2'b11 ||  w_rs2Field[2:1] == 2'b11));
+            7'b0100100: w_illegal = w_func3[1:0] != 2'b01;    // bclr bext
+            7'b0110100: w_illegal = w_func3[1:0] != 2'b01     // binv rev8
+              || (w_func3[2] && (w_isOp || w_rs2Field != 5'b11000));
+            7'b0010100: w_illegal = w_func3[1:0] != 2'b01     // bset orc.b
+              || (w_func3[2] && (w_isOp || w_rs2Field != 5'b00111));
+            default:    w_illegal = w_func3 != 3'b100 || w_rs2Field != 5'd0;
+          endcase
         end else begin
           case (w_func3)
             3'b000: begin
               w_class[CLASS_ALU] = 1'b1; w_selArith = 1'b1;
-              w_sub = w_op == OP_OP && w_func7[5];
+              w_sub = w_isOp && w_func7[5];
             end
             3'b001: begin
-              w_class[CLASS_SHIFT] = 1'b1;
+              w_class[CLASS_BITM] = 1'b1;
             end
             3'b010: begin
-              w_class[CLASS_SLT] = 1'b1; w_sub = 1'b1; w_selSlt = 1'b1;
+              w_class[CLASS_XALU] = 1'b1; w_sub = 1'b1; w_selSlt = 1'b1;
             end
             3'b011: begin
-              w_class[CLASS_SLT] = 1'b1; w_sub = 1'b1; w_selSlt = 1'b1; w_sltUnsigned = 1'b1;
+              w_class[CLASS_XALU] = 1'b1; w_sub = 1'b1; w_selSlt = 1'b1; w_sltUnsigned = 1'b1;
             end
             3'b100: begin
-              w_class[CLASS_ALU] = 1'b1; w_selXor = 1'b1;
+              w_class[CLASS_ALU] = 1'b1; w_selXor = 1'b1; w_sub = w_isOp && w_func7[5];
             end
             3'b101: begin
-              w_class[CLASS_SHIFT] = 1'b1; w_shiftRight = 1'b1; w_shiftArith = w_func7[5];
+              w_class[CLASS_BITM] = 1'b1; w_shiftRight = 1'b1; w_shiftArith = w_func7[5];
             end
             3'b110: begin
-              w_class[CLASS_ALU] = 1'b1; w_selOr = 1'b1;
+              w_class[CLASS_ALU] = 1'b1; w_selOr = 1'b1; w_sub = w_isOp && w_func7[5];
             end
             default: begin
-              w_class[CLASS_ALU] = 1'b1; w_selAnd = 1'b1;
+              w_class[CLASS_ALU] = 1'b1; w_selAnd = 1'b1; w_sub = w_isOp && w_func7[5];
             end
           endcase
-          if (w_op == OP_OP)
+          if (w_isOp)                                         // sub sra andn orn xnor
             w_illegal = !(w_func7 == 7'd0 || (w_func7 == 7'b0100000
-              && (w_func3 == 3'b000 || w_func3 == 3'b101)));
+              && (w_func3 == 3'b000 || w_func3[2])));
           else if (w_func3 == 3'b001)
             w_illegal = w_func7 != 7'd0;
           else if (w_func3 == 3'b101)
@@ -268,7 +299,7 @@ module decoder #(
       5'b100_01: begin                    // c.srli .. c.and
         case (c_instr[11:10])
           2'b00, 2'b01: begin             // c.srli, c.srai
-            c_class[CLASS_SHIFT] = 1'b1; c_immFormat[IMM_CI] = 1'b1;
+            c_class[CLASS_BITM]  = 1'b1; c_immFormat[IMM_CI] = 1'b1;
             c_shiftRight         = 1'b1; c_shiftArith = c_instr[10];
             c_zIsImm             = 1'b1; c_illegal    = c_instr[12];
           end
@@ -293,7 +324,7 @@ module decoder #(
         c_sub                 = 1'b1;
       end
       5'b000_10: begin                    // c.slli
-        c_class[CLASS_SHIFT]  = 1'b1; c_immFormat[IMM_CI]    = 1'b1;
+        c_class[CLASS_BITM]   = 1'b1; c_immFormat[IMM_CI]    = 1'b1;
         c_zIsImm              = 1'b1; c_illegal = c_instr[12];
       end
       5'b010_10: begin                    // c.lwsp
@@ -427,9 +458,9 @@ module decoder #(
   assign r2_class  = r1_r2_class  & {CLASS_W{!r1_r2_illegal}};
   assign r2_system = r1_r2_system & {SYSTEM_W{!r1_r2_illegal}};
 
-  assign r2_latency[LATENCY_1]   = r2_class[CLASS_ALU]   || r2_class[CLASS_JAL]
-                                || r2_class[CLASS_JALR]  || r2_class[CLASS_CSR];
-  assign r2_latency[LATENCY_3]   = r2_class[CLASS_SHIFT] || r2_class[CLASS_SLT];
+  assign r2_latency[LATENCY_1]   = r2_class[CLASS_ALU]  || r2_class[CLASS_JAL]
+                                || r2_class[CLASS_JALR] || r2_class[CLASS_CSR];
+  assign r2_latency[LATENCY_3]   = r2_class[CLASS_BITM] || r2_class[CLASS_XALU];
   assign r2_latency[LATENCY_4]   = r2_class[CLASS_MUL];
   assign r2_latency[LATENCY_5]   = r2_class[CLASS_LOAD];
   assign r2_latency[LATENCY_DIV] = r2_class[CLASS_DIV];

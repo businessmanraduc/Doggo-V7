@@ -8,7 +8,8 @@
 //  them (x0 folded). Phase 1: all 49152 16-bit encodings. Phase 2: 32-bit
 //  vectors, opcodes and funct7 biased. Phase 3: mixed stream under random
 //  stalls. Illegal: only class, latency, system, serialising and illegal are
-//  checked.
+//  checked. Zba/Zbb/Zbs/Zicond come from a mask/match table; every entry
+//  must be hit.
 // ================================================================================
 
 `include "uop_defs.svh"
@@ -170,6 +171,61 @@ module decoder_tb;
     endcase
   endfunction
 
+  // ---- Zba Zbb Zbs Zicond: mask/match from the spec encoding tables -----------
+  localparam int K_ALUN = 0, K_SHADD = 1, K_MINMAX = 2, K_CZERO = 3, K_SHIFT = 4;
+  localparam logic [31:0] M_R = 32'hFE00707F, M_U = 32'hFFF0707F;
+  localparam int NB = 36;
+  typedef struct { string name; logic [31:0] mask, match; int kind; } bop_t;
+
+`define MT(f7, rs2, f3, op) {f7, rs2, 5'd0, f3, 5'd0, op}
+
+  localparam logic [6:0] RR = 7'b0110011, RI = 7'b0010011;
+  bop_t BOPS [NB] = '{
+    '{"sh1add",    M_R, `MT(7'b0010000, 5'd0, 3'b010, RR), K_SHADD},
+    '{"sh2add",    M_R, `MT(7'b0010000, 5'd0, 3'b100, RR), K_SHADD},
+    '{"sh3add",    M_R, `MT(7'b0010000, 5'd0, 3'b110, RR), K_SHADD},
+    '{"andn",      M_R, `MT(7'b0100000, 5'd0, 3'b111, RR), K_ALUN},
+    '{"orn",       M_R, `MT(7'b0100000, 5'd0, 3'b110, RR), K_ALUN},
+    '{"xnor",      M_R, `MT(7'b0100000, 5'd0, 3'b100, RR), K_ALUN},
+    '{"clz",       M_U, `MT(7'b0110000, 5'd0, 3'b001, RI), K_SHIFT},
+    '{"ctz",       M_U, `MT(7'b0110000, 5'd1, 3'b001, RI), K_SHIFT},
+    '{"cpop",      M_U, `MT(7'b0110000, 5'd2, 3'b001, RI), K_SHIFT},
+    '{"sext.b",    M_U, `MT(7'b0110000, 5'd4, 3'b001, RI), K_SHIFT},
+    '{"sext.h",    M_U, `MT(7'b0110000, 5'd5, 3'b001, RI), K_SHIFT},
+    '{"zext.h",    M_U, `MT(7'b0000100, 5'd0, 3'b100, RR), K_SHIFT},
+    '{"min",       M_R, `MT(7'b0000101, 5'd0, 3'b100, RR), K_MINMAX},
+    '{"minu",      M_R, `MT(7'b0000101, 5'd0, 3'b101, RR), K_MINMAX},
+    '{"max",       M_R, `MT(7'b0000101, 5'd0, 3'b110, RR), K_MINMAX},
+    '{"maxu",      M_R, `MT(7'b0000101, 5'd0, 3'b111, RR), K_MINMAX},
+    '{"rol",       M_R, `MT(7'b0110000, 5'd0, 3'b001, RR), K_SHIFT},
+    '{"ror",       M_R, `MT(7'b0110000, 5'd0, 3'b101, RR), K_SHIFT},
+    '{"rori",      M_R, `MT(7'b0110000, 5'd0, 3'b101, RI), K_SHIFT},
+    '{"rev8",      M_U, `MT(7'b0110100, 5'b11000, 3'b101, RI), K_SHIFT},
+    '{"orc.b",     M_U, `MT(7'b0010100, 5'b00111, 3'b101, RI), K_SHIFT},
+    '{"bclr",      M_R, `MT(7'b0100100, 5'd0, 3'b001, RR), K_SHIFT},
+    '{"bclri",     M_R, `MT(7'b0100100, 5'd0, 3'b001, RI), K_SHIFT},
+    '{"bext",      M_R, `MT(7'b0100100, 5'd0, 3'b101, RR), K_SHIFT},
+    '{"bexti",     M_R, `MT(7'b0100100, 5'd0, 3'b101, RI), K_SHIFT},
+    '{"binv",      M_R, `MT(7'b0110100, 5'd0, 3'b001, RR), K_SHIFT},
+    '{"binvi",     M_R, `MT(7'b0110100, 5'd0, 3'b001, RI), K_SHIFT},
+    '{"bset",      M_R, `MT(7'b0010100, 5'd0, 3'b001, RR), K_SHIFT},
+    '{"bseti",     M_R, `MT(7'b0010100, 5'd0, 3'b001, RI), K_SHIFT},
+    '{"czero.eqz", M_R, `MT(7'b0000111, 5'd0, 3'b101, RR), K_CZERO},
+    '{"czero.nez", M_R, `MT(7'b0000111, 5'd0, 3'b111, RR), K_CZERO},
+    // base neighbours, so near misses are also counted
+    '{"sub",       M_R, `MT(7'b0100000, 5'd0, 3'b000, RR), -1},
+    '{"sra",       M_R, `MT(7'b0100000, 5'd0, 3'b101, RR), -1},
+    '{"srai",      M_R, `MT(7'b0100000, 5'd0, 3'b101, RI), -1},
+    '{"slli",      M_R, `MT(7'b0000000, 5'd0, 3'b001, RI), -1},
+    '{"srli",      M_R, `MT(7'b0000000, 5'd0, 3'b101, RI), -1}
+  };
+  int nB [NB];
+
+  function automatic int bopOf(logic [31:0] i);
+    for (int k = 0; k < NB; k++) if ((i & BOPS[k].mask) == BOPS[k].match) return k;
+    return -1;
+  endfunction
+
   // decode of a 32-bit instruction into the expected uop
   function automatic ref_t decode(logic [31:0] i);
     ref_t        r;
@@ -177,6 +233,7 @@ module decoder_tb;
     logic [6:0]  f7;
     logic [31:0] iI, iS, iU;
     bit          r1, r2;
+    int          b;
     r  = '{default: '0};
     r.legal = 1'b1;
     f3 = i[14:12];
@@ -212,18 +269,29 @@ module decoder_tb;
         r1 = 1;
         r2 = i[5];
         r.zImm = !i[5];
-        if (!i[5]) r.imm = iI;
-        if (i[5] && f7 == 7'b0000001) begin
+        r.imm  = iI;
+        b = bopOf(i);
+        if (b >= 0 && BOPS[b].kind >= 0) begin
+          case (BOPS[b].kind)
+            K_ALUN: begin
+              r.cls[CLASS_ALU] = 1; r.sub = 1;
+              r.andOp = f3 == 3'b111; r.orOp = f3 == 3'b110; r.xorOp = f3 == 3'b100;
+            end
+            K_SHADD, K_CZERO: r.cls[CLASS_XALU] = 1;
+            K_MINMAX: begin r.cls[CLASS_XALU] = 1; r.sub = 1; r.sltU = f3[0]; end
+            default:  begin r.cls[CLASS_BITM] = 1; r.shR = f3 == 3'b101; end
+          endcase
+        end else if (i[5] && f7 == 7'b0000001) begin
           if (f3[2]) r.cls[CLASS_DIV] = 1;
           else       r.cls[CLASS_MUL] = 1;
         end else begin
           case (f3)
             3'b000: begin r.cls[CLASS_ALU] = 1; r.arith = 1; end
-            3'b001: r.cls[CLASS_SHIFT] = 1;
-            3'b010: begin r.cls[CLASS_SLT] = 1; r.sub = 1; r.slt = 1; end
-            3'b011: begin r.cls[CLASS_SLT] = 1; r.sub = 1; r.slt = 1; r.sltU = 1; end
+            3'b001: r.cls[CLASS_BITM] = 1;
+            3'b010: begin r.cls[CLASS_XALU] = 1; r.sub = 1; r.slt = 1; end
+            3'b011: begin r.cls[CLASS_XALU] = 1; r.sub = 1; r.slt = 1; r.sltU = 1; end
             3'b100: begin r.cls[CLASS_ALU] = 1; r.xorOp = 1; end
-            3'b101: begin r.cls[CLASS_SHIFT] = 1; r.shR = 1; r.shA = f7[5]; end
+            3'b101: begin r.cls[CLASS_BITM] = 1; r.shR = 1; r.shA = f7[5]; end
             3'b110: begin r.cls[CLASS_ALU] = 1; r.orOp = 1; end
             default: begin r.cls[CLASS_ALU] = 1; r.andOp = 1; end
           endcase
@@ -269,6 +337,7 @@ module decoder_tb;
     e = expand(ins[15:0]);
     r = decode(e[31:0]);
     r.legal = r.legal && e[32];
+    if (e[6:0] == 7'b0110011) r.imm = '0;     // 16-bit R-type: ALU only, no funct7
     return r;
   endfunction
 
@@ -276,7 +345,7 @@ module decoder_tb;
     logic [LATENCY_W-1:0] l;
     l = '0;
     l[LATENCY_1]   = c[CLASS_ALU] || c[CLASS_JAL] || c[CLASS_JALR] || c[CLASS_CSR];
-    l[LATENCY_3]   = c[CLASS_SHIFT] || c[CLASS_SLT];
+    l[LATENCY_3]   = c[CLASS_BITM] || c[CLASS_XALU];
     l[LATENCY_4]   = c[CLASS_MUL];
     l[LATENCY_5]   = c[CLASS_LOAD];
     l[LATENCY_DIV] = c[CLASS_DIV];
@@ -345,6 +414,7 @@ module decoder_tb;
     end else begin
       nChk++;
       for (int k = 0; k < CLASS_W; k++) nClass[k] += int'(e.cls[k]);
+      if (!m_r2pds.rvc && bopOf(m_r2pds.instr) >= 0) nB[bopOf(m_r2pds.instr)]++;
       for (int k = 0; k < SYSTEM_W; k++) nSys[k] += int'(e.sys[k]);
       if (r2_pds_class !== e.cls)
         fail("chk_class", $sformatf("class %b exp %b", r2_pds_class, e.cls));
@@ -364,17 +434,20 @@ module decoder_tb;
         fail("chk_opsel", $sformatf("xIsPC zIsImm %b", {r2_pds_xIsPC, r2_pds_zIsImm}));
       if (r2_pds_xIsZero !== (!e.rs1Use && !e.xPc) || r2_pds_zIsZero !== (!e.rs2Use && !e.zImm))
         fail("chk_zero", $sformatf("xIsZero zIsZero %b", {r2_pds_xIsZero, r2_pds_zIsZero}));
-      if (e.cls[CLASS_SHIFT]) begin
+      if (e.cls[CLASS_BITM]) begin
         if ({r2_pds_shiftRight, r2_pds_shiftArith} !== {e.shR, e.shA})
           fail("chk_shift", $sformatf("right arith %b", {r2_pds_shiftRight, r2_pds_shiftArith}));
-        if (r2_pds_immediate[4:0] !== e.imm[4:0])
-          fail("chk_imm", $sformatf("shamt %0d exp %0d", r2_pds_immediate[4:0], e.imm[4:0]));
+        // 16-bit shifts: shamt only, funct7 field reads 0 (direction in the flags)
+        if (m_r2pds.rvc ? r2_pds_immediate[11:0] !== {7'd0, e.imm[4:0]}
+                        : r2_pds_immediate[11:0] !== e.imm[11:0])
+          fail("chk_imm", $sformatf("shift imm %h exp %h", r2_pds_immediate[11:0], e.imm[11:0]));
       end
-      if ((e.cls & ((1 << CLASS_ALU) | (1 << CLASS_SLT) | (1 << CLASS_LOAD) | (1 << CLASS_STORE)
+      if ((e.cls & ((1 << CLASS_ALU) | (1 << CLASS_XALU) | (1 << CLASS_LOAD) | (1 << CLASS_STORE)
                   | (1 << CLASS_JALR) | (1 << CLASS_CSR))) != 0 && r2_pds_immediate !== e.imm)
         fail("chk_imm", $sformatf("imm %h exp %h", r2_pds_immediate, e.imm));
       if ((e.cls & ((1 << CLASS_LOAD) | (1 << CLASS_STORE) | (1 << CLASS_BRANCH) | (1 << CLASS_MUL)
-                  | (1 << CLASS_DIV) | (1 << CLASS_CSR))) != 0 && r2_pds_func3 !== e.f3)
+                  | (1 << CLASS_DIV) | (1 << CLASS_CSR) | (1 << CLASS_XALU) | (1 << CLASS_BITM)))
+          != 0 && !(m_r2pds.rvc && e.cls[CLASS_BITM]) && r2_pds_func3 !== e.f3)
         fail("chk_f3", $sformatf("f3 %b exp %b", r2_pds_func3, e.f3));
       if (e.cls[CLASS_BRANCH] && {r2_pds_branchUseLt, r2_pds_branchInvert} !== {e.f3[2], e.f3[0]})
         fail("chk_branch", $sformatf("useLt invert %b", {r2_pds_branchUseLt, r2_pds_branchInvert}));
@@ -396,19 +469,39 @@ module decoder_tb;
   localparam logic [31:0] SYS [4] = '{32'h0000_0073, 32'h0010_0073, 32'h3020_0073,
                                       32'h1050_0073};
 
+  localparam logic [6:0] BF7 [8] = '{7'b0010000, 7'b0000101, 7'b0000111, 7'b0110000,
+    7'b0100100, 7'b0110100, 7'b0010100, 7'b0000100};
+  localparam logic [6:0] ALLF7 [11] = '{7'b0000000, 7'b0100000, 7'b0000001, 7'b0010000,
+    7'b0000101, 7'b0000111, 7'b0110000, 7'b0100100, 7'b0110100, 7'b0010100, 7'b0000100};
+  localparam logic [4:0] BRS2 [10] = '{5'd1, 5'd2, 5'd3, 5'd4, 5'd5, 5'd6, 5'd7, 5'd8,
+    5'b11000, 5'b10111};
+
   function automatic logic [31:0] rand32();
     logic [31:0] i;
+    int          k;
     i = $urandom;
     i[1:0] = 2'b11;
     if ($urandom_range(3) != 0) i[6:0] = OPS[$urandom_range(11)];
-    case ($urandom_range(3))
+    case ($urandom_range(5))
       0: i[31:25] = 7'b0000000;
       1: i[31:25] = 7'b0100000;
       2: i[31:25] = 7'b0000001;
+      3: i[31:25] = BF7[$urandom_range(7)];
+      4: begin                                  // one or two bits off a known funct7
+        i[31:25] = ALLF7[$urandom_range(10)] ^ (7'd1 << $urandom_range(6));
+        if ($urandom_range(1) == 0) i[31:25] = i[31:25] ^ (7'd1 << $urandom_range(6));
+      end
       default: ;
     endcase
     if ($urandom_range(3) == 0) i[19:15] = 5'd0;
     if ($urandom_range(3) == 0) i[24:20] = 5'd0;
+    else if ($urandom_range(3) == 0) i[24:20] = BRS2[$urandom_range(9)];
+    if ($urandom_range(3) == 0) begin           // exact B op, free fields random
+      k = $urandom_range(NB - 1);
+      i = ($urandom & ~BOPS[k].mask) | BOPS[k].match;
+      k = 7 + $urandom_range(24);
+      if ($urandom_range(1) == 0) i[k] = !i[k];                     // near miss
+    end
     if (i[6:0] == 7'b1110011 && $urandom_range(1) != 0) i = SYS[$urandom_range(3)];
     return i;
   endfunction
@@ -440,6 +533,7 @@ module decoder_tb;
     void'($urandom(seed));
     foreach (nClass[k]) nClass[k] = 0;
     foreach (nSys[k]) nSys[k] = 0;
+    foreach (nB[k]) nB[k] = 0;
 
     for (int k = 0; k < 65536; k++) begin
       if (k[1:0] == 2'b11) continue;
@@ -466,6 +560,11 @@ module decoder_tb;
     cov = nHeld1 != 0 && nHeld2 != 0 && nIll != 0;
     foreach (nClass[k]) cov = cov && nClass[k] != 0;
     foreach (nSys[k]) cov = cov && nSys[k] != 0;
+    foreach (nB[k]) begin
+      if (nB[k] == 0) $display("uncovered %s", BOPS[k].name);
+      cov = cov && nB[k] != 0;
+    end
+    $display("b ops min hits %0d", nB.min()[0]);
     if (!cov) begin
       $display("ERROR chk_cov: stimulus misses a case");
       errors++;
