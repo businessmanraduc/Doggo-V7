@@ -17,6 +17,7 @@
 //   registered map and head.
 //   - Free list: 32-entry FIFO in LUTRAM, pop at the head in R1, push the old
 //   tag at the tail as instructions commit.
+//   - R2 skid: catches R1/R2 while PreDS stalls; R2/PreDS loads from it first.
 //   - Retirement map: written at commit, copied into the map on a flush.
 //   - Valid/Flush: a flush wins over a mispredict.
 //   - Recovery: from flops only, a cycle after the kill, R1 blocked for
@@ -38,6 +39,7 @@ module rename (
   // ---- inter-stage pipeline register controls ----------------------------------
   input  logic        stall_r2_pds,         // PreDS cannot take the register
   output logic        stall_r1_r2,          // to the decoder
+  output logic        rd2_skidValid,        // to the decoder
   output logic        stall_d_r1,           // to the predecoder
   // ---- branch resolve (EX) -----------------------------------------------------
   input  logic        ex_resolveValid,
@@ -67,6 +69,7 @@ module rename (
   logic [5:0] rn_map [32];                  // speculative map
   logic [5:0] rn_retireMap [32];            // committed map
   logic [5:0] fl_ram [32];                  // free tags circular FIFO
+  logic [5:0] fl_ramNext [32];              // copy shifted by one
   logic [5:0] fl_head, fl_tail, fl_commitHead, fl_headTag;
   logic       fl_init;                      // fill walk after reset
   logic       rn_hold;                      // registered: init, recovery
@@ -95,7 +98,7 @@ module rename (
 
   assign r1_needSnapshot = d_r1_isBranch | d_r1_isJalr;
   assign r1_block        = rn_hold | (r1_needSnapshot & sn_full);
-  assign stall_r1_r2     = stall_r2_pds & r1_r2_valid;
+  assign stall_r1_r2     = rd2_skidValid & r1_r2_valid;
   assign stall_d_r1      = stall_r1_r2 | (d_r1_valid & r1_block);
   assign r1_go           = d_r1_valid & !stall_d_r1;
   assign r1_write        = r1_go & d_r1_rdWriteEnable;
@@ -136,9 +139,9 @@ module rename (
       end
     end else begin
       for (int r = 0; r < 32; r++) begin
-        if (r1_mapWrite[r])     rn_map[r] <= r1_rdTag;
-        else if (rc_flush)      rn_map[r] <= rn_retireMap[r];
-        else if (rc_mispredict) rn_map[r] <= sn_map[rc_index][r];
+        if (r1_mapWrite[r] || rc_flush || rc_mispredict) begin
+          rn_map[r] <= rc_flush ? rn_retireMap[r] : rc_mispredict ? sn_map[rc_index][r] : r1_rdTag;
+        end
       end
       if (cm_commitRd) rn_retireMap[cm_rdIndex] <= cm_rdTag;
     end
@@ -178,13 +181,14 @@ module rename (
   logic [4:0] fl_writeIndex; assign fl_writeIndex = fl_tail[4:0];
   logic [5:0] fl_writeTag;   assign fl_writeTag   = fl_init ? {1'b1, fl_tail[4:0]} : cm_rdOldTag;
 
-  always_ff @(posedge clk) if (fl_write) fl_ram[fl_writeIndex] <= fl_writeTag;
+  always_ff @(posedge clk) if (fl_write) fl_ram[fl_writeIndex]            <= fl_writeTag;
+  always_ff @(posedge clk) if (fl_write) fl_ramNext[fl_writeIndex - 5'd1] <= fl_writeTag;
 
   // ---- head tag, read a cycle ahead --------------------------------------------
   logic [5:0] fl_headPlus;
   assign fl_headPlus = fl_head + 6'd1;
   always_ff @(posedge clk)
-    fl_headTag <= r1_write ? fl_ram[fl_headPlus[4:0]] : fl_ram[fl_head[4:0]];
+    fl_headTag <= r1_write ? fl_ramNext[fl_head[4:0]] : fl_ram[fl_head[4:0]];
 
   always_ff @(posedge clk) begin
     if (!resetn) begin
@@ -239,24 +243,61 @@ module rename (
     r1_r2_branchMask <= (stall_r1_r2 ? r1_r2_branchMask : r1_mask) & ~ex_resolveClear;
   end
 
-  // ---- Rename-2/Dispatch-1 register: map read 2 --------------------------------
-  always_ff @(posedge clk) begin
-    if (!resetn || rn_kill) r2_pds_valid <= 1'b0;
-    else if (!stall_r2_pds) r2_pds_valid <= r1_r2_valid;
+  // ---- R2: map read 2 ----------------------------------------------------------
+  logic [5:0] r2_rs1Tag;   assign r2_rs1Tag   = r1_r2_rs1Part[r1_r2_rs1Group];
+  logic [5:0] r2_rs2Tag;   assign r2_rs2Tag   = r1_r2_rs2Part[r1_r2_rs2Group];
+  logic [5:0] r2_rdOldTag; assign r2_rdOldTag = r1_r2_rdPart[r1_r2_rdGroup];
 
-    if (!stall_r2_pds) begin
-      r2_pds_rs1Tag        <= r1_r2_rs1Part[r1_r2_rs1Group];
-      r2_pds_rs2Tag        <= r1_r2_rs2Part[r1_r2_rs2Group];
-      r2_pds_rdOldTag      <= r1_r2_rdPart[r1_r2_rdGroup];
-      r2_pds_rdTag         <= r1_r2_rdTag;
-      r2_pds_rs1Use        <= r1_r2_rs1Use;
-      r2_pds_rs2Use        <= r1_r2_rs2Use;
-      r2_pds_rdIndex       <= r1_r2_rdIndex;
-      r2_pds_rdWriteEnable <= r1_r2_rdWriteEnable;
-      r2_pds_snapshot      <= r1_r2_snapshot;
+  // ---- R2 skid: catches R1/R2 while PreDS stalls -------------------------------
+  logic       r2_skidLoad; assign r2_skidLoad = stall_r2_pds & !rd2_skidValid;
+  logic [5:0] r2_skidRs1Tag, r2_skidRs2Tag, r2_skidRdTag, r2_skidRdOldTag;
+  logic       r2_skidRs1Use, r2_skidRs2Use, r2_skidRdWriteEnable;
+  logic [4:0] r2_skidRdIndex;
+  logic [3:0] r2_skidBranchMask;
+  logic [1:0] r2_skidSnapshot;
+
+  always_ff @(posedge clk) begin
+    if (!resetn || rn_kill) rd2_skidValid <= 1'b0;
+    else if (r2_skidLoad)   rd2_skidValid <= r1_r2_valid;
+    else if (!stall_r2_pds) rd2_skidValid <= 1'b0;
+
+    if (!rd2_skidValid) begin
+      r2_skidRs1Tag        <= r2_rs1Tag;
+      r2_skidRs2Tag        <= r2_rs2Tag;
+      r2_skidRdOldTag      <= r2_rdOldTag;
+      r2_skidRdTag         <= r1_r2_rdTag;
+      r2_skidRs1Use        <= r1_r2_rs1Use;
+      r2_skidRs2Use        <= r1_r2_rs2Use;
+      r2_skidRdIndex       <= r1_r2_rdIndex;
+      r2_skidRdWriteEnable <= r1_r2_rdWriteEnable;
+      r2_skidSnapshot      <= r1_r2_snapshot;
     end
 
-    r2_pds_branchMask <= (stall_r2_pds ? r2_pds_branchMask : r1_r2_branchMask) & ~ex_resolveClear;
+    r2_skidBranchMask <= (!rd2_skidValid ? r1_r2_branchMask : r2_skidBranchMask) & ~ex_resolveClear;
+  end
+
+  // ---- Rename-2/Dispatch-1 register --------------------------------------------
+  always_ff @(posedge clk) begin
+    if (!resetn || rn_kill) r2_pds_valid <= 1'b0;
+    else if (!stall_r2_pds) r2_pds_valid <= rd2_skidValid | r1_r2_valid;
+
+    if (!stall_r2_pds) begin
+      r2_pds_rs1Tag        <= rd2_skidValid ? r2_skidRs1Tag        : r2_rs1Tag;
+      r2_pds_rs2Tag        <= rd2_skidValid ? r2_skidRs2Tag        : r2_rs2Tag;
+      r2_pds_rdOldTag      <= rd2_skidValid ? r2_skidRdOldTag      : r2_rdOldTag;
+      r2_pds_rdTag         <= rd2_skidValid ? r2_skidRdTag         : r1_r2_rdTag;
+      r2_pds_rs1Use        <= rd2_skidValid ? r2_skidRs1Use        : r1_r2_rs1Use;
+      r2_pds_rs2Use        <= rd2_skidValid ? r2_skidRs2Use        : r1_r2_rs2Use;
+      r2_pds_rdIndex       <= rd2_skidValid ? r2_skidRdIndex       : r1_r2_rdIndex;
+      r2_pds_rdWriteEnable <= rd2_skidValid ? r2_skidRdWriteEnable : r1_r2_rdWriteEnable;
+      r2_pds_snapshot      <= rd2_skidValid ? r2_skidSnapshot      : r1_r2_snapshot;
+    end
+
+    r2_pds_branchMask <= (
+      stall_r2_pds  ? r2_pds_branchMask :
+      rd2_skidValid ? r2_skidBranchMask :
+      r1_r2_branchMask
+    ) & ~ex_resolveClear;
   end
 
 endmodule

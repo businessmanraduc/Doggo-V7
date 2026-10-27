@@ -3,8 +3,9 @@
 // ================================================================================
 //  Reference: every 16-bit encoding is expanded to its 32-bit form (spec
 //  tables), then the 32-bit form is decoded by opcode, funct3 and funct7 into
-//  the expected uop. Both registers (D1/D2, D2/PreDS) are modelled cycle by
-//  cycle with their own stall. rs1Use/rs2Use are driven as the decoder makes
+//  the expected uop. Both registers (D1/D2, D2/PreDS) and the D2 skid are
+//  modelled cycle by cycle; the bench plays rename's skid control
+//  (rd2_skidValid, stall_d1_d2 = skid full & D1/D2 valid) with random bubbles. rs1Use/rs2Use are driven as the decoder makes
 //  them (x0 folded). Phase 1: all 49152 16-bit encodings. Phase 2: 32-bit
 //  vectors, opcodes and funct7 biased. Phase 3: mixed stream under random
 //  stalls. Illegal: only class, latency, system, serialising and illegal are
@@ -31,6 +32,7 @@ module decoder_tb;
   logic [30:0]          d_d1_seq = '0;
   logic                 stall_d1_d2 = 1'b0;
   logic                 stall_d2_pds = 1'b0;
+  logic                 rd2_skidValid = 1'b0;
   logic [30:0]          d2_pds_pc, d2_pds_branchTarget, d2_pds_seq;
   logic [MW-1:0]        d2_pds_meta;
   logic                 d2_pds_isCall, d2_pds_isRet, d2_pds_rvc;
@@ -355,6 +357,7 @@ module decoder_tb;
   // ---- D1/D2 and D2/PreDS register model ---------------------------------------
   typedef struct {
     bit            known;
+    bit            valid;
     ref_t          r;
     logic [31:0]   instr;
     logic          rvc;
@@ -363,11 +366,14 @@ module decoder_tb;
     logic          isCall, isRet;
   } slot_t;
 
-  slot_t m_r1r2 = '{default: '0}, m_r2pds = '{default: '0};
+  slot_t m_r1r2 = '{default: '0}, m_skid = '{default: '0}, m_r2pds = '{default: '0};
+  bit    m_skidValid = 1'b0;                  // rename's skid valid, played by the bench
+  bit    d1Valid = 1'b1;
 
   always @(posedge clk) begin
     if (!stall_d1_d2) begin
       m_r1r2.known        <= 1'b1;
+      m_r1r2.valid        <= d1Valid;
       m_r1r2.r            <= reference(d_d1_instr, d_d1_rvc);
       m_r1r2.instr        <= d_d1_instr;
       m_r1r2.rvc          <= d_d1_rvc;
@@ -378,12 +384,16 @@ module decoder_tb;
       m_r1r2.isCall       <= d_d1_isCall;
       m_r1r2.isRet        <= d_d1_isRet;
     end
-    if (!stall_d2_pds) m_r2pds <= m_r1r2;
+    if (stall_d2_pds && !m_skidValid) begin
+      m_skid      <= m_r1r2;
+      m_skidValid <= m_r1r2.valid;
+    end else if (!stall_d2_pds) m_skidValid <= 1'b0;
+    if (!stall_d2_pds) m_r2pds <= m_skidValid ? m_skid : m_r1r2;
   end
 
   // ---- checks ------------------------------------------------------------------
   int errors = 0;
-  int nChk = 0, nIll = 0, nHeld1 = 0, nHeld2 = 0;
+  int nChk = 0, nIll = 0, nHeld1 = 0, nHeld2 = 0, nSkidLoad = 0, nSkidDrain = 0, nSkidBubble = 0;
   int nClass [CLASS_W];
   int nSys [SYSTEM_W];
 
@@ -395,7 +405,7 @@ module decoder_tb;
 
   ref_t e;
 
-  always @(negedge clk) if (m_r2pds.known) begin
+  always @(negedge clk) if (m_r2pds.known && m_r2pds.valid) begin
     e = m_r2pds.r;
     nHeld1 += int'(stall_d1_d2);
     nHeld2 += int'(stall_d2_pds);
@@ -506,7 +516,7 @@ module decoder_tb;
     return i;
   endfunction
 
-  task automatic drive(logic [31:0] ins, logic rvc, logic st1, logic st2);
+  task automatic drive(logic [31:0] ins, logic rvc, logic bubble, logic st2);
     ref_t r;
     @(negedge clk);
     r = reference(ins, rvc);
@@ -520,8 +530,13 @@ module decoder_tb;
     d_d1_isRet        = 1'($urandom);
     d_d1_branchTarget = 31'($urandom);
     d_d1_seq          = 31'($urandom);
-    stall_d1_d2       = st1;
+    d1Valid           = !bubble;
+    rd2_skidValid      = m_skidValid;
+    stall_d1_d2       = m_skidValid && m_r1r2.valid;
     stall_d2_pds      = st2;
+    nSkidLoad        += int'(st2 && !m_skidValid && m_r1r2.valid);
+    nSkidDrain       += int'(!st2 && m_skidValid);
+    nSkidBubble      += int'(m_skidValid && !m_r1r2.valid);
   endtask
 
   int unsigned seed = 1;
@@ -557,7 +572,10 @@ module decoder_tb;
     $display("checked %0d legal, %0d illegal, held d1/d2 %0d, held d2/pds %0d",
              nChk, nIll, nHeld1, nHeld2);
     $display("class counts %p, system counts %p", nClass, nSys);
-    cov = nHeld1 != 0 && nHeld2 != 0 && nIll != 0;
+    $display("skid loads %0d drains %0d d1 moves behind full skid %0d", nSkidLoad, nSkidDrain,
+             nSkidBubble);
+    cov = nHeld1 != 0 && nHeld2 != 0 && nIll != 0 && nSkidLoad != 0 && nSkidDrain != 0
+       && nSkidBubble != 0;
     foreach (nClass[k]) cov = cov && nClass[k] != 0;
     foreach (nSys[k]) cov = cov && nSys[k] != 0;
     foreach (nB[k]) begin

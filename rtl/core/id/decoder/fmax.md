@@ -5,29 +5,29 @@ tools: Yosys 0.62, nextpnr-35f1433
 
 | floor | median | mean | ceil |
 |---|---|---|---|
-| 145.60 | 148.91 | 150.42 | 157.53 |
+| 147.08 | 155.86 | 155.99 | 163.64 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 150.20 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 2 | 146.82 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 3 | 149.03 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 4 | 147.73 | u_s0.r               -> u_dut.d1_d2_selSlt |
-| 5 | 148.30 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 6 | 157.53 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 7 | 147.78 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 8 | 148.41 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 9 | 147.45 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 10 | 146.56 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 11 | 151.72 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 12 | 153.40 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 13 | 148.79 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 14 | 152.28 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |
-| 15 | 153.68 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 16 | 157.04 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 17 | 156.62 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 18 | 148.79 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 19 | 145.60 | u_s0.r               -> u_dut.d1_d2_illegalW |
-| 20 | 150.72 | u_s0.r               -> u_dut.d1_d2_illegalW |
+| 1 | 149.45 | u_s0.r               -> u_dut.d1_d2_selArith |
+| 2 | 163.64 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |
+| 3 | 160.95 | u_s0.r               -> u_dut.d1_d2_selSlt |
+| 4 | 158.45 | u_s0.r               -> u_dut.d1_d2_selArith |
+| 5 | 155.93 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |
+| 6 | 147.08 | u_s0.r               -> u_dut.d1_d2_illegalAlu |
+| 7 | 155.79 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |
+| 8 | 150.26 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |
+| 9 | 153.68 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |
+| 10 | 151.63 | u_s0.r               -> u_dut.d1_d2_selXor |
+| 11 | 155.01 | u_s0.r               -> u_dut.d1_d2_selSlt |
+| 12 | 158.76 | u_s0.r               -> u_dut.d1_d2_sub |
+| 13 | 161.42 | u_s0.r               -> u_dut.d1_d2_illegalSys |
+| 14 | 157.04 | u_s0.r               -> u_dut.d1_d2_system |
+| 15 | 163.61 | u_s0.r               -> u_dut.d1_d2_sub |
+| 16 | 156.20 | u_s0.r               -> u_dut.d1_d2_selArith |
+| 17 | 152.77 | u_s0.r               -> u_dut.d1_d2_illegalAlu |
+| 18 | 150.35 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |
+| 19 | 154.58 | u_s0.r               -> u_dut.d1_d2_class |
+| 20 | 163.21 | u_s0.r               -> u_dut.d1_d2_sltUnsigned |

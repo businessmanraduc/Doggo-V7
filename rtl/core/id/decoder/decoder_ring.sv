@@ -53,6 +53,7 @@ module decoder_ring (
     .d_d1_seq          (s3[30:0]),
     .stall_d1_d2       (ctl[5]),
     .stall_d2_pds      (ctl[6]),
+    .rd2_skidValid      (s1[31]),
     .d2_pds_pc, .d2_pds_meta, .d2_pds_isCall, .d2_pds_isRet, .d2_pds_branchTarget, .d2_pds_seq,
     .d2_pds_rvc, .d2_pds_class, .d2_pds_latency, .d2_pds_sub, .d2_pds_selArith, .d2_pds_selAnd,
     .d2_pds_selOr, .d2_pds_selXor, .d2_pds_selSlt, .d2_pds_sltUnsigned, .d2_pds_shiftRight,

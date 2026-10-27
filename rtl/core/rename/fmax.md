@@ -5,29 +5,29 @@ tools: Yosys 0.62, nextpnr-35f1433
 
 | floor | median | mean | ceil |
 |---|---|---|---|
-| 143.43 | 153.89 | 153.84 | 166.75 |
+| 138.81 | 156.20 | 156.48 | 177.84 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 164.04 | u_dut.stall_r2_pds   -> u_dut.rn_map |
-| 2 | 145.88 | u_dut.sn_full        -> u_dut.fl_headTag |
-| 3 | 156.64 | u_dut.r1_r2_valid    -> u_dut.fl_headTag |
-| 4 | 144.11 | u_dut.stall_r2_pds   -> u_dut.fl_headTag |
-| 5 | 161.76 | u_dut.stall_r2_pds   -> u_dut.fl_headTag |
-| 6 | 144.55 | u_dut.sn_full        -> u_dut.fl_headTag |
-| 7 | 162.28 | u_dut.d_r1_isJalr    -> u_dut.fl_headTag |
-| 8 | 166.75 | u_dut.stall_r2_pds   -> u_dut.fl_headTag |
-| 9 | 153.82 | u_dut.r1_r2_valid    -> u_dut.rn_map |
-| 10 | 152.30 | u_dut.r1_r2_valid    -> u_dut.fl_headTag |
-| 11 | 152.28 | u_dut.sn_full        -> u_dut.fl_headTag |
-| 12 | 143.43 | u_dut.sn_full        -> u_dut.fl_headTag |
-| 13 | 155.26 | u_dut.d_r1_isJalr    -> u_dut.fl_headTag |
-| 14 | 155.11 | u_dut.d_r1_isJalr    -> u_dut.fl_headTag |
-| 15 | 156.62 | u_dut.sn_full        -> u_dut.fl_headTag |
-| 16 | 151.75 | u_dut.r1_r2_valid    -> u_dut.fl_headTag |
-| 17 | 147.41 | u_dut.sn_full        -> u_dut.fl_headTag |
-| 18 | 158.50 | u_dut.sn_full        -> u_dut.fl_headTag |
-| 19 | 153.96 | u_dut.stall_r2_pds   -> u_dut.fl_headTag |
-| 20 | 150.26 | u_dut.d_r1_isJalr    -> u_dut.fl_headTag |
+| 1 | 149.16 | u_dut.rn_hold        -> u_dut.rn_map |
+| 2 | 156.40 | u_dut.rn_hold        -> u_dut.rn_map |
+| 3 | 161.32 | u_dut.r1_r2_valid    -> u_dut.rn_map |
+| 4 | 168.35 | u_dut.r1_r2_valid    -> u_dut.rn_map |
+| 5 | 163.67 | u_dut.rd2_skidValid  -> u_dut.rn_map |
+| 6 | 152.07 | u_dut.d_r1_isBranch  -> u_dut.rn_map |
+| 7 | 155.62 | u_dut.d_r1_isBranch  -> u_dut.fl_headTag |
+| 8 | 156.01 | u_dut.rn_hold        -> u_dut.rn_map |
+| 9 | 162.07 | u_dut.r1_r2_valid    -> u_dut.rn_map |
+| 10 | 146.31 | u_dut.d_r1_isJalr    -> u_dut.rn_map |
+| 11 | 162.36 | u_dut.d_r1_isJalr    -> u_dut.rn_map |
+| 12 | 176.62 | u_s0.r               -> u_dut.r1_r2_rs1Part |
+| 13 | 156.94 | u_dut.d_r1_isBranch  -> u_dut.fl_headTag |
+| 14 | 140.77 | u_dut.rn_hold        -> u_dut.rn_map |
+| 15 | 177.84 | u_dut.r1_r2_valid    -> u_dut.rn_map |
+| 16 | 142.17 | u_dut.rd2_skidValid  -> u_dut.rn_map |
+| 17 | 157.78 | u_dut.rn_hold        -> u_dut.rn_map |
+| 18 | 138.81 | u_dut.r1_r2_valid    -> u_dut.rn_map |
+| 19 | 155.47 | u_dut.rd2_skidValid  -> u_dut.rn_map |
+| 20 | 149.88 | u_dut.d_r1_isBranch  -> u_dut.rn_map |

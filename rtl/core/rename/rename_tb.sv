@@ -3,16 +3,16 @@
 // ================================================================================
 //  Reference: map and retirement map as arrays, free list as an unbounded log
 //  with integer head/tail/commit pointers (no ring), snapshots copied at rename
-//  time (not a cycle late). Both registers (R1/R2, R2/PreDS) are shadowed cycle
-//  by cycle with their stalls and kills. The bench is the rest of the core: a
+//  time (not a cycle late). Both registers (R1/R2, R2/PreDS) and the R2 skid
+//  are shadowed cycle by cycle with their stalls and kills. The bench is the rest of the core: a
 //  D/R1 register that holds on stall_d_r1 and is flushed on a kill, an in-order
 //  ROB that resolves branches out of order (mispredict kills the younger ones),
 //  commits from the head and flushes at the head, with or without a commit.
 //  Semantic checks at the ROB, independent of the reference: a commit's old tag
 //  is the retirement map's entry, a new tag is in no live mapping, a uop's
 //  branch mask is exactly the older unresolved branches, a snapshot index is
-//  not in use. No free-list stall: at most 19 tags are out (ROB 16 + R1/R2,
-//  R2/PreDS, PreDS/DS), so the bench ROB holds 17 and every pop must leave
+//  not in use. No free-list stall: at most 20 tags are out (ROB 16 + R1/R2,
+//  skid, R2/PreDS, PreDS/DS), so the bench ROB holds 17 and every pop must leave
 //  at least 2 free (chk_freeFloor; a pop sees 14 at the fewest, the stimulus
 //  must reach 15). Phases: realistic ROB 16, ROB 17 with slow commit (fewest
 //  free tags), branch-heavy (snapshot stall); a reset starts every phase. R1
@@ -29,7 +29,7 @@ module rename_tb;
   logic       d_r1_rs1Use = 1'b0, d_r1_rs2Use = 1'b0, d_r1_rdWriteEnable = 1'b0;
   logic       d_r1_isBranch = 1'b0, d_r1_isJalr = 1'b0;
   logic       stall_r2_pds = 1'b0;
-  logic       stall_r1_r2, stall_d_r1;
+  logic       stall_r1_r2, stall_d_r1, rd2_skidValid;
   logic       ex_resolveValid = 1'b0;
   logic [1:0] ex_resolveSnapshot = '0;
   logic       ex_resolveMispredict = 1'b0;
@@ -67,7 +67,7 @@ module rename_tb;
   longint   sage [4];                      // rename order of the snapshot's branch
   longint   nTake = 0;
   bit [3:0] live;
-  exp_t     e1, e2;                         // shadows of r1_r2, r2_pds
+  exp_t     e1, es, e2;                     // shadows of r1_r2, skid, r2_pds
 
   typedef struct {
     int       id;
@@ -92,7 +92,7 @@ module rename_tb;
 
   int errors = 0;
   int nGo, nMis, nFlushC, nFlushN, minFree, nSnapStall, nHold1, nHold2, nKillXfer;
-  int nCommit, nWrap;
+  int nCommit, nWrap, nSkidLoad, nSkidDrain, nSkidBubble;
 
   int seen [string];
   task automatic fail(string name, string what);
@@ -119,6 +119,7 @@ module rename_tb;
     fh = 0; ft = 0; fc = 0;
     rinit = 1'b1; rstall = 1'b1; live = '0; kq1 = 1'b0; kq2 = 1'b0;
     e1 = '{default: 0};
+    es = '{default: 0};
     e2 = '{default: 0};
     rob.delete();
   endtask
@@ -128,7 +129,7 @@ module rename_tb;
     bit     rstallN;
     longint fcN;
     int     k;
-    exp_t   e2n, e1n;
+    exp_t   e2n, esn, e1n;
 
     rstallN = rinit;
     if (c_commit) rret[cm_rdIndex] = cm_rdTag;
@@ -171,8 +172,13 @@ module rename_tb;
     // ---- register shadows ------------------------------------------------------
     e2n = e2;
     if (c_kill)             e2n.valid = 1'b0;
-    else if (!stall_r2_pds) e2n = e1;
-    e2n.mask = (stall_r2_pds ? e2.mask : e1.mask) & ~c_clear;
+    else if (!stall_r2_pds) e2n = es.valid ? es : e1;
+    e2n.mask = (stall_r2_pds ? e2.mask : es.valid ? es.mask : e1.mask) & ~c_clear;
+    esn = es;                                     // skid: catches R1/R2, drains first
+    if (c_kill)                         esn.valid = 1'b0;
+    else if (stall_r2_pds && !es.valid) esn = e1;
+    else if (!stall_r2_pds)             esn.valid = 1'b0;
+    esn.mask = (stall_r2_pds && !es.valid ? e1.mask : es.mask) & ~c_clear;
     e1n = e1;
     if (c_kill)             e1n.valid = 1'b0;
     else if (!c_stall1) begin
@@ -181,6 +187,7 @@ module rename_tb;
     end
     e1n.mask = (c_stall1 ? e1.mask : c_exp.mask) & ~c_clear;
     e1 = e1n;
+    es = esn;
     e2 = e2n;
 
     // ---- bench ROB -------------------------------------------------------------
@@ -199,6 +206,7 @@ module rename_tb;
 
   // ---- registered outputs against the R2/PreDS shadow --------------------------
   task automatic checkOutputs();
+    if (rd2_skidValid !== es.valid) fail("chk_skid", $sformatf("skid %0d exp %0d", rd2_skidValid, es.valid));
     if (r2_pds_valid !== e2.valid) fail("chk_valid", $sformatf("valid %0d exp %0d", r2_pds_valid, e2.valid));
     if (!e2.valid || r2_pds_valid !== 1'b1) return;
     if (r2_pds_rs1Tag != e2.rs1Tag || r2_pds_rs2Tag != e2.rs2Tag)
@@ -294,7 +302,7 @@ module rename_tb;
     c_mis    = ex_resolveValid & ex_resolveMispredict;
     c_flush  = cm_flush;
     c_kill   = c_mis | c_flush;
-    c_stall1 = stall_r2_pds & e1.valid;
+    c_stall1 = es.valid & e1.valid;
     need     = d_r1_isBranch | d_r1_isJalr;
     block    = rstall | kq1 | kq2 | (need & (&live));
     stallD   = c_stall1 | (d_r1_valid & block);
@@ -324,6 +332,7 @@ module rename_tb;
       for (int r = 0; r < 32; r++) inUse[rret[r]] = 1'b1;
       foreach (rob[i]) if (rob[i].rdWE) inUse[rob[i].rdTag] = 1'b1;
       if (e1.valid && e1.rdWE) inUse[e1.rdTag] = 1'b1;
+      if (es.valid && es.rdWE) inUse[es.rdTag] = 1'b1;
       if (e2.valid && e2.rdWE) inUse[e2.rdTag] = 1'b1;
       if (c_exp.rdTag < 0 || inUse[c_exp.rdTag])
         fail("chk_tagfree", $sformatf("new tag %0d is live", c_exp.rdTag));
@@ -336,6 +345,7 @@ module rename_tb;
       for (int r = 0; r < 32; r++) cnt[rret[r]]++;
       foreach (rob[i]) if (rob[i].rdWE) cnt[rob[i].rdTag]++;
       if (e1.valid && e1.rdWE) cnt[e1.rdTag]++;
+      if (es.valid && es.rdWE) cnt[es.rdTag]++;
       if (e2.valid && e2.rdWE) cnt[e2.rdTag]++;
       for (longint q = fh; q < ft; q++) cnt[fq[q]]++;
       foreach (cnt[t]) if (cnt[t] != 1) begin
@@ -368,6 +378,9 @@ module rename_tb;
     nSnapStall += int'(d_r1_valid && need && (&live) && !rstall && !c_stall1 && !kq1 && !kq2);
     nHold1     += int'(c_stall1);
     nHold2     += int'(stall_r2_pds && e2.valid);
+    nSkidLoad  += int'(stall_r2_pds && !es.valid && e1.valid && !c_kill);
+    nSkidDrain += int'(!stall_r2_pds && es.valid && !c_kill);
+    nSkidBubble += int'(es.valid && !e1.valid && d_r1_valid && !stallD);   // R1 moves behind a full skid
     prevKill   = c_kill;
     prevStallD = stallD;
   endtask
@@ -410,7 +423,7 @@ module rename_tb;
     void'($urandom(seed));
     inReset = 1'b1;
     {nGo, nMis, nFlushC, nFlushN, nSnapStall, nHold1, nHold2, nKillXfer, nCommit,
-     nWrap} = '0;
+     nWrap, nSkidLoad, nSkidDrain, nSkidBubble} = '0;
     minFree = 64;
     //     cycles  rob  valid br jalr res mis com flush stall
     phase(100000,  16,  85,  15, 5,   40, 25, 60, 1,    15);
@@ -422,8 +435,11 @@ module rename_tb;
              nFlushC, nFlushN, nWrap);
     $display("min free %0d snapshot stall %0d held r1/r2 %0d r2/pds %0d killed transfers %0d",
              minFree, nSnapStall, nHold1, nHold2, nKillXfer);
+    $display("skid loads %0d drains %0d r1 moves behind full skid %0d", nSkidLoad, nSkidDrain,
+             nSkidBubble);
     cov = nGo > 50000 && nMis != 0 && nFlushC != 0 && nFlushN != 0 && minFree <= 15 &&
-          nSnapStall != 0 && nHold1 != 0 && nHold2 != 0 && nKillXfer != 0 && nWrap != 0;
+          nSnapStall != 0 && nHold1 != 0 && nHold2 != 0 && nKillXfer != 0 && nWrap != 0 &&
+          nSkidLoad != 0 && nSkidDrain != 0 && nSkidBubble != 0;
     if (!cov) begin
       $display("ERROR chk_cov: stimulus misses a case");
       errors++;

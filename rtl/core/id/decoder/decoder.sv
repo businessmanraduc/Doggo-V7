@@ -16,9 +16,10 @@
 //    parallel, merged by rvc, immediate leaves D1 as one-hot format select.
 //    - D2: immediate assembly (AND-OR of formats), illegal merge by rvc,
 //    latency group, serializing, f3-derived controls.
+//    - D2 skid: beside rename's, selected by rename's rd2_skidValid.
 //    - Payload only: no valid/reset. Rename owns valid/flush; each register
 //    holds while its stall is high.
-//    - Illegal: class + latency + system = 0, uop only traps at the head.
+//    - Illegal: 32-bit check split in 3 flops, OR on all 3 in D2.
 //    - OP and OP-IMM carry instr[31:20] in immediate -> XALU and BITM FUs
 //    tell their ops apart by func7 and func3.
 // ================================================================================
@@ -42,6 +43,7 @@ module decoder #(
   // ---- inter-stage pipeline register controls ----------------------------------
   input  logic                 stall_d1_d2,
   input  logic                 stall_d2_pds,
+  input  logic                 rd2_skidValid,
   // ---- Decode-2/Dispatch-1 inter-stage pipeline register -----------------------
   output logic [30:0]          d2_pds_pc,
   output logic [MW-1:0]        d2_pds_meta,
@@ -118,7 +120,7 @@ module decoder #(
   logic [IMM_W-1:0]     w_immFormat;
   logic                 w_sub, w_selArith, w_selAnd, w_selOr, w_selXor, w_selSlt;
   logic                 w_sltUnsigned, w_shiftRight, w_shiftArith, w_xIsPC, w_zIsImm;
-  logic                 w_illegal;
+  logic                 w_illegal, w_illegalAlu, w_illegalSys;
 
   assign w_instr    = d_d1_instr;
   assign w_op       = w_instr[6:2];
@@ -128,12 +130,14 @@ module decoder #(
   assign w_isOp     = w_op == OP_OP;
 
   always_comb begin
-    w_class     = '0;
-    w_system    = '0;
-    w_immFormat = '0;
+    w_class      = '0;
+    w_system     = '0;
+    w_immFormat  = '0;
     {w_sub, w_selArith, w_selAnd, w_selOr, w_selXor, w_selSlt} = '0;
     {w_sltUnsigned, w_shiftRight, w_shiftArith, w_xIsPC, w_zIsImm} = '0;
-    w_illegal   = 1'b0;
+    w_illegal    = 1'b0;
+    w_illegalAlu = 1'b0;
+    w_illegalSys = 1'b0;
 
     case (w_op)
       OP_LUI, OP_AUIPC: begin
@@ -166,28 +170,28 @@ module decoder #(
           w_class[w_func3[2] ? CLASS_DIV : CLASS_MUL] = 1'b1;
         end else if (w_isOp && w_func7 == 7'b0010000) begin   // shXadd
           w_class[CLASS_XALU] = 1'b1;
-          w_illegal = w_func3[0] || w_func3[2:1] == 2'b00;
+          w_illegalAlu = w_func3[0] || w_func3[2:1] == 2'b00;
         end else if (w_isOp && w_func7 == 7'b0000101) begin   // min/max
           w_class[CLASS_XALU] = 1'b1; w_sub = 1'b1; w_sltUnsigned = w_func3[0];
-          w_illegal = !w_func3[2];
+          w_illegalAlu = !w_func3[2];
         end else if (w_isOp && w_func7 == 7'b0000111) begin   // czero
           w_class[CLASS_XALU] = 1'b1;
-          w_illegal = !(w_func3[2] && w_func3[0]);
+          w_illegalAlu = !(w_func3[2] && w_func3[0]);
         end else if ((w_isOp && w_func7 == 7'b0000100) || ((w_isOp || w_func3[1:0] == 2'b01)
                  && (w_func7 == 7'b0110000 || w_func7 == 7'b0100100
                  ||  w_func7 == 7'b0110100 || w_func7 == 7'b0010100)
         )) begin                                              // zext.h
           w_class[CLASS_BITM] = 1'b1; w_shiftRight = w_func3 == 3'b101;
           case (w_func7)
-            7'b0110000: w_illegal = w_func3[1:0] != 2'b01     // rol ror clz ctz cpop sext
+            7'b0110000: w_illegalAlu = w_func3[1:0] != 2'b01  // rol ror clz ctz cpop sext
               || (!w_isOp && !w_func3[2]  && (w_rs2Field[4:3] != 2'b00
               || w_rs2Field[1:0] == 2'b11 ||  w_rs2Field[2:1] == 2'b11));
-            7'b0100100: w_illegal = w_func3[1:0] != 2'b01;    // bclr bext
-            7'b0110100: w_illegal = w_func3[1:0] != 2'b01     // binv rev8
+            7'b0100100: w_illegalAlu = w_func3[1:0] != 2'b01; // bclr bext
+            7'b0110100: w_illegalAlu = w_func3[1:0] != 2'b01  // binv rev8
               || (w_func3[2] && (w_isOp || w_rs2Field != 5'b11000));
-            7'b0010100: w_illegal = w_func3[1:0] != 2'b01     // bset orc.b
+            7'b0010100: w_illegalAlu = w_func3[1:0] != 2'b01  // bset orc.b
               || (w_func3[2] && (w_isOp || w_rs2Field != 5'b00111));
-            default:    w_illegal = w_func3 != 3'b100 || w_rs2Field != 5'd0;
+            default:    w_illegalAlu = w_func3 != 3'b100 || w_rs2Field != 5'd0;
           endcase
         end else begin
           case (w_func3)
@@ -205,25 +209,25 @@ module decoder #(
               w_class[CLASS_XALU] = 1'b1; w_sub = 1'b1; w_selSlt = 1'b1; w_sltUnsigned = 1'b1;
             end
             3'b100: begin
-              w_class[CLASS_ALU] = 1'b1; w_selXor = 1'b1; w_sub = w_isOp && w_func7[5];
+              w_class[CLASS_ALU]  = 1'b1; w_selXor = 1'b1; w_sub = w_isOp && w_func7[5];
             end
             3'b101: begin
               w_class[CLASS_BITM] = 1'b1; w_shiftRight = 1'b1; w_shiftArith = w_func7[5];
             end
             3'b110: begin
-              w_class[CLASS_ALU] = 1'b1; w_selOr = 1'b1; w_sub = w_isOp && w_func7[5];
+              w_class[CLASS_ALU]  = 1'b1; w_selOr = 1'b1; w_sub = w_isOp && w_func7[5];
             end
             default: begin
-              w_class[CLASS_ALU] = 1'b1; w_selAnd = 1'b1; w_sub = w_isOp && w_func7[5];
+              w_class[CLASS_ALU]  = 1'b1; w_selAnd = 1'b1; w_sub = w_isOp && w_func7[5];
             end
           endcase
           if (w_isOp)                                         // sub sra andn orn xnor
-            w_illegal = !(w_func7 == 7'd0 || (w_func7 == 7'b0100000
+            w_illegalAlu = !(w_func7 == 7'd0 || (w_func7 == 7'b0100000
               && (w_func3 == 3'b000 || w_func3[2])));
           else if (w_func3 == 3'b001)
-            w_illegal = w_func7 != 7'd0;
+            w_illegalAlu = w_func7 != 7'd0;
           else if (w_func3 == 3'b101)
-            w_illegal = !(w_func7 == 7'd0 || w_func7 == 7'b0100000);
+            w_illegalAlu = !(w_func7 == 7'd0 || w_func7 == 7'b0100000);
         end
       end
       OP_MISC_MEM: begin
@@ -240,7 +244,7 @@ module decoder #(
             25'h0002000: w_system[SYSTEM_EBREAK] = 1'b1;
             25'h0604000: w_system[SYSTEM_MRET]   = 1'b1;
             25'h020A000: w_system[SYSTEM_WFI]    = 1'b1;
-            default:     w_illegal = 1'b1;
+            default:     w_illegalSys = 1'b1;
           endcase
         end else begin
           w_class[CLASS_CSR] = 1'b1; w_immFormat[IMM_CSR] = 1'b1;
@@ -391,7 +395,7 @@ module decoder #(
   logic                 d1_d2_sub, d1_d2_selArith, d1_d2_selAnd, d1_d2_selOr, d1_d2_selXor;
   logic                 d1_d2_selSlt, d1_d2_sltUnsigned, d1_d2_shiftRight, d1_d2_shiftArith;
   logic                 d1_d2_xIsPC, d1_d2_xIsZero, d1_d2_zIsImm, d1_d2_zIsZero;
-  logic                 d1_d2_illegalW, d1_d2_illegalC;
+  logic                 d1_d2_illegalW, d1_d2_illegalAlu, d1_d2_illegalSys, d1_d2_illegalC;
 
   always_ff @(posedge clk) begin
     if (!stall_d1_d2) begin
@@ -421,6 +425,8 @@ module decoder #(
       d1_d2_zIsImm       <= d1_zIsImm;
       d1_d2_zIsZero      <= !d_d1_rs2Use && !d1_zIsImm;
       d1_d2_illegalW     <= w_illegal;
+      d1_d2_illegalAlu   <= w_illegalAlu;
+      d1_d2_illegalSys   <= w_illegalSys;
       d1_d2_illegalC     <= c_illegal;
     end
   end
@@ -458,7 +464,8 @@ module decoder #(
   logic [SYSTEM_W-1:0]  d2_system;
   logic [LATENCY_W-1:0] d2_latency;
 
-  assign d2_illegal = d1_d2_rvc ? d1_d2_illegalC : d1_d2_illegalW;
+  assign d2_illegal = d1_d2_rvc ? d1_d2_illegalC
+    : (d1_d2_illegalW | d1_d2_illegalAlu | d1_d2_illegalSys);
   assign d2_class   = d1_d2_class  & {CLASS_W {!d2_illegal}};
   assign d2_system  = d1_d2_system & {SYSTEM_W{!d2_illegal}};
 
@@ -469,44 +476,42 @@ module decoder #(
   assign d2_latency[LATENCY_5]   = d2_class[CLASS_LOAD];
   assign d2_latency[LATENCY_DIV] = d2_class[CLASS_DIV];
 
+  // ---- D2 skid: catches D1/D2 while PreDS stalls -------------------------------
+  localparam int D2W = 31 + MW + 1 + 1 + 31 + 31 + 1 + CLASS_W + LATENCY_W
+                     + 9 + 4 + 2 + 3 + 2 + 3 + SYSTEM_W + 1 + 32 + 1;
+  logic [D2W-1:0] d2_next, d2_skid, d2_load;
+
+  assign d2_next = {
+    d1_d2_pc,           d1_d2_meta,     d1_d2_isCall, d1_d2_isRet,
+    d1_d2_branchTarget, d1_d2_seq,      d1_d2_rvc,    d2_class,    d2_latency,
+    d1_d2_sub,          d1_d2_selArith, d1_d2_selAnd, d1_d2_selOr, d1_d2_selXor,
+    d1_d2_selSlt,       d1_d2_sltUnsigned, d1_d2_shiftRight, d1_d2_shiftArith,
+    d1_d2_xIsPC,        d1_d2_xIsZero,  d1_d2_zIsImm, d1_d2_zIsZero,
+    d1_d2_func3[2],     d1_d2_func3[0],
+    d1_d2_func3[1]    ^ d1_d2_func3[0], d1_d2_func3[1:0] == 2'b01, d1_d2_func3[1:0] != 2'b00,
+    !d1_d2_func3[0],    d1_d2_func3[1],
+    d1_d2_func3,        d2_system,      d2_class[CLASS_CSR] || d2_class[CLASS_SYSTEM],
+    d2_immediate,       d2_illegal
+  };
+
+  always_ff @(posedge clk) if (!rd2_skidValid)
+         d2_skid <= d2_next;
+  assign d2_load  = rd2_skidValid ? d2_skid : d2_next;
+
   // ---- Decode-2/Dispatch-1 inter-stage pipeline register -----------------------
   always_ff @(posedge clk) begin
-    if (!stall_d2_pds) begin
-      d2_pds_pc           <= d1_d2_pc;
-      d2_pds_meta         <= d1_d2_meta;
-      d2_pds_isCall       <= d1_d2_isCall;
-      d2_pds_isRet        <= d1_d2_isRet;
-      d2_pds_branchTarget <= d1_d2_branchTarget;
-      d2_pds_seq          <= d1_d2_seq;
-      d2_pds_rvc          <= d1_d2_rvc;
-      d2_pds_class        <= d2_class;
-      d2_pds_latency      <= d2_latency;
-      d2_pds_sub          <= d1_d2_sub;
-      d2_pds_selArith     <= d1_d2_selArith;
-      d2_pds_selAnd       <= d1_d2_selAnd;
-      d2_pds_selOr        <= d1_d2_selOr;
-      d2_pds_selXor       <= d1_d2_selXor;
-      d2_pds_selSlt       <= d1_d2_selSlt;
-      d2_pds_sltUnsigned  <= d1_d2_sltUnsigned;
-      d2_pds_shiftRight   <= d1_d2_shiftRight;
-      d2_pds_shiftArith   <= d1_d2_shiftArith;
-      d2_pds_xIsPC        <= d1_d2_xIsPC;
-      d2_pds_xIsZero      <= d1_d2_xIsZero;
-      d2_pds_zIsImm       <= d1_d2_zIsImm;
-      d2_pds_zIsZero      <= d1_d2_zIsZero;
-      d2_pds_branchUseLt  <= d1_d2_func3[2];
-      d2_pds_branchInvert <= d1_d2_func3[0];
-      d2_pds_mulSignedA   <= d1_d2_func3[1] ^ d1_d2_func3[0]; // mulh, mulhsu
-      d2_pds_mulSignedB   <= d1_d2_func3[1:0] == 2'b01;       // mulh
-      d2_pds_mulHigh      <= d1_d2_func3[1:0] != 2'b00;
-      d2_pds_divSigned    <= !d1_d2_func3[0];
-      d2_pds_divRemainder <= d1_d2_func3[1];
-      d2_pds_func3        <= d1_d2_func3;
-      d2_pds_system       <= d2_system;
-      d2_pds_serialising  <= d2_class[CLASS_CSR] || d2_class[CLASS_SYSTEM];
-      d2_pds_immediate    <= d2_immediate;
-      d2_pds_illegal      <= d2_illegal;
-    end
+    if (!stall_d2_pds) {
+      d2_pds_pc,           d2_pds_meta,     d2_pds_isCall, d2_pds_isRet,
+      d2_pds_branchTarget, d2_pds_seq,      d2_pds_rvc,    d2_pds_class, d2_pds_latency,
+      d2_pds_sub,          d2_pds_selArith, d2_pds_selAnd, d2_pds_selOr, d2_pds_selXor,
+      d2_pds_selSlt,       d2_pds_sltUnsigned, d2_pds_shiftRight, d2_pds_shiftArith,
+      d2_pds_xIsPC,        d2_pds_xIsZero,  d2_pds_zIsImm, d2_pds_zIsZero,
+      d2_pds_branchUseLt,  d2_pds_branchInvert,
+      d2_pds_mulSignedA,   d2_pds_mulSignedB, d2_pds_mulHigh,
+      d2_pds_divSigned,    d2_pds_divRemainder,
+      d2_pds_func3,        d2_pds_system,   d2_pds_serialising,
+      d2_pds_immediate,    d2_pds_illegal
+    } <= d2_load;
   end
 
 endmodule
