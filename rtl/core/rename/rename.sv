@@ -69,7 +69,7 @@ module rename (
   logic [5:0] fl_ram [32];                  // free tags circular FIFO
   logic [5:0] fl_head, fl_tail, fl_commitHead, fl_headTag;
   logic       fl_init;                      // fill walk after reset
-  logic       rn_hold;                      // registered: < 2 free tags, init, recovery
+  logic       rn_hold;                      // registered: init, recovery
   logic [3:0] sn_live;                      // snapshot busy <=> branch unresolved
   logic       sn_full;                      // &sn_live, registered
   logic [5:0] sn_map [4][32];
@@ -202,7 +202,7 @@ module rename (
       if (fl_tail == 6'd31)   fl_init <= 1'b0;
 
       fl_commitHead <= fl_commitHead + 6'(cm_commitRd);
-      rn_hold       <= fl_init | (6'(fl_tail - fl_head) < 6'd2) | rn_kill | rc_flush | rc_mispredict;
+      rn_hold       <= fl_init | rn_kill | rc_flush | rc_mispredict;
     end
   end
 

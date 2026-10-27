@@ -2,8 +2,8 @@
 //  predisp_ring -- ring wrapper: every DUT port register-bounded
 //  ports are the ring convention: clk, perturb (in), q (out)
 // ================================================================================
-//  stall_pds_ds is one LUT on pds_ds_valid and two flops, as DS makes it (IQ
-//  tail ready and ROB credit, both registered).
+//  stall_pds_ds and ds_iqFire are one LUT each on pds_ds_valid and flops, as
+//  DS makes them (IQ tail ready, ROB credit and skipIq, all registered).
 // ================================================================================
 
 `include "uop_defs.svh"
@@ -31,9 +31,10 @@ module predisp_ring (
   logic [LATENCY_W-1:0] pds_ds_latency;
   logic [7:0]           pds_ds_depL1, pds_ds_depL3, pds_ds_depL4, pds_ds_depL5;
   logic                 pds_ds_rs1Wait, pds_ds_rs2Wait;
-  logic                 stall_pds_ds;
+  logic                 stall_pds_ds, ds_iqFire;
 
   assign stall_pds_ds = pds_ds_valid & (s3[30] | s3[31]);
+  assign ds_iqFire    = pds_ds_valid & !(s3[30] | s3[31]) & !s3[28];
 
   predisp u_dut (
     .clk,
@@ -51,6 +52,7 @@ module predisp_ring (
     .r2_pds_snapshot      (s1[6:5]),
     .r2_pds_latency       (s1[11:7]),
     .stall_pds_ds,
+    .ds_iqFire,
     .ex_resolveValid      (s1[12]),
     .ex_resolveSnapshot   (s1[14:13]),
     .ex_resolveMispredict (s1[15]),

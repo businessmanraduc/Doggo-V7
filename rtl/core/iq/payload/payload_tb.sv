@@ -56,7 +56,7 @@ module payload_tb;
   } uop_t;
 
   logic clk = 1'b0;
-  logic ds_fire = 1'b0;
+  logic ds_iqFire = 1'b0;
   logic [7:0] iq_tailSlot = 8'b1;
   logic [7:0] is_pr_grant = '0;
   uop_t in, out;
@@ -65,7 +65,7 @@ module payload_tb;
 
   payload #(.MW(MW)) u_dut (
     .clk,
-    .ds_fire,
+    .ds_iqFire,
     .iq_tailSlot,
     .is_pr_grant,
     .ds_robIndex           (in.robIndex),
@@ -236,18 +236,18 @@ module payload_tb;
     end
 
     // ---- DS: dispatch into the tail when its slot is free ----------------------
-    ds_fire = 1'b0;
+    ds_iqFire = 1'b0;
     in      = randomUop();
     if ((dispatchedAt[tail] < 0 || granted[tail]) && t >= freeFrom[tail]
         && $urandom_range(99) < dispatchRate) begin
-      ds_fire = 1'b1;
+      ds_iqFire = 1'b1;
       if (granted[tail] && t == freeFrom[tail]) cov["reuseEarliest"]++;
       word[tail]         = in;
       dispatchedAt[tail] = t;
       granted[tail]      = 1'b0;
     end
     iq_tailSlot = 8'(1) << tail;
-    if (ds_fire) tail = (tail + 1) % 8;
+    if (ds_iqFire) tail = (tail + 1) % 8;
   endtask
 
   task automatic runPhase(string name, int dRate, int gRate, int cycles);

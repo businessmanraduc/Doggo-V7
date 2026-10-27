@@ -11,9 +11,12 @@
 //  Semantic checks at the ROB, independent of the reference: a commit's old tag
 //  is the retirement map's entry, a new tag is in no live mapping, a uop's
 //  branch mask is exactly the older unresolved branches, a snapshot index is
-//  not in use. Phases: realistic ROB 16, ROB 48 with slow commit (free-list
-//  stall), branch-heavy (snapshot stall); a reset starts every phase. R1 is
-//  held for two cycles after a kill (recovery from registered kills).
+//  not in use. No free-list stall: at most 19 tags are out (ROB 16 + R1/R2,
+//  R2/PreDS, PreDS/DS), so the bench ROB holds 17 and every pop must leave
+//  at least 2 free (chk_freeFloor; a pop sees 14 at the fewest, the stimulus
+//  must reach 15). Phases: realistic ROB 16, ROB 17 with slow commit (fewest
+//  free tags), branch-heavy (snapshot stall); a reset starts every phase. R1
+//  is held for two cycles after a kill (recovery from registered kills).
 // ================================================================================
 
 /* verilator lint_off WIDTHEXPAND */
@@ -88,7 +91,7 @@ module rename_tb;
   int robCap, pValid, pBranch, pJalr, pResolve, pMis, pCommit, pFlush, pStall;
 
   int errors = 0;
-  int nGo, nMis, nFlushC, nFlushN, nFreeStall, nSnapStall, nHold1, nHold2, nKillXfer;
+  int nGo, nMis, nFlushC, nFlushN, minFree, nSnapStall, nHold1, nHold2, nKillXfer;
   int nCommit, nWrap;
 
   int seen [string];
@@ -127,7 +130,7 @@ module rename_tb;
     int     k;
     exp_t   e2n, e1n;
 
-    rstallN = rinit | ((ft - fh) < 2);
+    rstallN = rinit;
     if (c_commit) rret[cm_rdIndex] = cm_rdTag;
     fcN = fc + longint'(c_commit);
     if (rinit) begin
@@ -358,7 +361,10 @@ module rename_tb;
 
     nGo        += int'(c_go);
     nMis       += int'(c_mis);
-    nFreeStall += int'(d_r1_valid && rstall && !rinit && ft - fh < 4 && !c_stall1 && !kq1 && !kq2);
+    if (c_write && !rinit) begin
+      if (ft - fh < 2) fail("chk_freeFloor", $sformatf("pop leaves %0d free", ft - fh - 1));
+      if (ft - fh < minFree) minFree = int'(ft - fh);
+    end
     nSnapStall += int'(d_r1_valid && need && (&live) && !rstall && !c_stall1 && !kq1 && !kq2);
     nHold1     += int'(c_stall1);
     nHold2     += int'(stall_r2_pds && e2.valid);
@@ -393,7 +399,7 @@ module rename_tb;
     pCommit = pc; pFlush = pf; pStall = ps;
     repeat (3) cycle(1'b1);
     repeat (n) cycle(1'b0);
-    $display("phase rob %0d: go %0d free stall %0d snapshot stall %0d", cap, nGo, nFreeStall, nSnapStall);
+    $display("phase rob %0d: go %0d min free %0d snapshot stall %0d", cap, nGo, minFree, nSnapStall);
   endtask
 
   int unsigned seed = 1;
@@ -403,19 +409,20 @@ module rename_tb;
     void'($value$plusargs("seed=%d", seed));
     void'($urandom(seed));
     inReset = 1'b1;
-    {nGo, nMis, nFlushC, nFlushN, nFreeStall, nSnapStall, nHold1, nHold2, nKillXfer, nCommit,
+    {nGo, nMis, nFlushC, nFlushN, nSnapStall, nHold1, nHold2, nKillXfer, nCommit,
      nWrap} = '0;
+    minFree = 64;
     //     cycles  rob  valid br jalr res mis com flush stall
     phase(100000,  16,  85,  15, 5,   40, 25, 60, 1,    15);
-    phase(60000,   48,  95,  5,  2,   50, 20, 15, 0,    5);
+    phase(60000,   17,  95,  5,  2,   50, 20, 5,  0,    2);
     phase(60000,   16,  90,  45, 10,  15, 30, 60, 1,    10);
     cycle(1'b0);
 
     $display("go %0d commits %0d mispredicts %0d flushes %0d+%0d wraps %0d", nGo, nCommit, nMis,
              nFlushC, nFlushN, nWrap);
-    $display("free stall %0d snapshot stall %0d held r1/r2 %0d r2/pds %0d killed transfers %0d",
-             nFreeStall, nSnapStall, nHold1, nHold2, nKillXfer);
-    cov = nGo > 50000 && nMis != 0 && nFlushC != 0 && nFlushN != 0 && nFreeStall != 0 &&
+    $display("min free %0d snapshot stall %0d held r1/r2 %0d r2/pds %0d killed transfers %0d",
+             minFree, nSnapStall, nHold1, nHold2, nKillXfer);
+    cov = nGo > 50000 && nMis != 0 && nFlushC != 0 && nFlushN != 0 && minFree <= 15 &&
           nSnapStall != 0 && nHold1 != 0 && nHold2 != 0 && nKillXfer != 0 && nWrap != 0;
     if (!cov) begin
       $display("ERROR chk_cov: stimulus misses a case");

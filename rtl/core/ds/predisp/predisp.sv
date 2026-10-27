@@ -38,6 +38,7 @@ module predisp (
   // ---- inter-stage pipeline register controls ----------------------------------
   input  logic                 stall_pds_ds,        // DS cannot take the register
   output logic                 stall_r2_pds,        // to rename and the decoder
+  input  logic                 ds_iqFire,           // DS uop written into IQ tail
   // ---- branch resolve (EX), commit flush ---------------------------------------
   input  logic                 ex_resolveValid,
   input  logic [1:0]           ex_resolveSnapshot,
@@ -78,9 +79,8 @@ module predisp (
   logic [3:0] ex_resolveClear; assign ex_resolveClear =
     ex_resolveValid ? 4'(1) << ex_resolveSnapshot : 4'b0;
 
-  // ---- stall & dispatch fire ---------------------------------------------------
+  // ---- stall -------------------------------------------------------------------
   assign stall_r2_pds = stall_pds_ds & r2_pds_valid;
-  logic pds_fire; assign pds_fire = pds_ds_valid & !stall_pds_ds;
 
   // ---- slot mirror {L5, L4, L3, L1} one-hot, 0 -> no result --------------------
   logic [5:0] pds_slotTag [8];
@@ -102,7 +102,7 @@ module predisp (
 
   always_ff @(posedge clk) begin
     for (int k = 0; k < 8; k++)
-      if (pds_fire && iq_tailSlot[k]) begin
+      if (ds_iqFire && iq_tailSlot[k]) begin
         pds_slotTag[k]      <= pds_ds_rdTag;
         pds_slotLatency[k]  <= pds_dsLatency;
         pds_slotProducer[k] <= pds_dsLatency != 4'd0;

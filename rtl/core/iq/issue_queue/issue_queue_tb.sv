@@ -15,6 +15,11 @@
 //   - chk_tail, chk_visible, chk_grantPrevious, chk_wake, chk_ready: the
 //   exports to predisp and DS against the 0054 windows.
 //   - chk_drain: with no new uops, everything commits.
+//   - chk_slotsd: IQ boundary contract for the slot-sd flags (one divide and
+//   one pending word in flight): never both sources from the same unit, and
+//   a source from a unit is a waiting source.
+//  Skip uops (system, illegal) fire with no IQ row, also past a full IQ; the
+//  predisp slot mirror is written on ds_iqFire only.
 //  Phases: realistic, stall-heavy, kill-heavy, slot-sd heavy, dense
 //  mispredicts (rows die as they are written); reset each.
 // ================================================================================
@@ -55,21 +60,39 @@ module issue_queue_tb;
   logic                 pds_ds_rs1FromDiv = 1'b0, pds_ds_rs1FromMiss = 1'b0;
   logic                 pds_ds_rs2FromDiv = 1'b0, pds_ds_rs2FromMiss = 1'b0;
   logic                 iqRs1Wait, iqRs2Wait;
-  logic                 ds_fire, ds_iqGo, iq_dispatchReady;
+  logic                 ds_fire, ds_iqGo, ds_iqFire, iq_dispatchReady;
   logic                 sd_steal = 1'b0, sd_divWake = 1'b0, sd_missWake = 1'b0;
   logic [N-1:0]         is_pr_grant;
   logic [3:0]           iq_grantBranchMask;
-  logic                 robCredit = 1'b0, killNow = 1'b0;
+  logic                 robCredit = 1'b0, killNow = 1'b0, dsSkip = 1'b0;
+  int                   skipRate = 5;
 
-  assign stall_pds_ds = pds_ds_valid & !(iq_dispatchReady & robCredit);
-  assign ds_iqGo      = pds_ds_valid & robCredit;
-  assign ds_fire      = ds_iqGo & iq_dispatchReady;
+  assign stall_pds_ds = pds_ds_valid & !((iq_dispatchReady | dsSkip) & robCredit);
+  assign ds_iqGo      = pds_ds_valid & robCredit & !dsSkip;
+  assign ds_fire      = pds_ds_valid & robCredit & (dsSkip | iq_dispatchReady);
+  assign ds_iqFire    = ds_iqGo & iq_dispatchReady;
 
   predisp u_pds (.*);
   assign iqRs1Wait = pds_ds_rs1Wait | pds_ds_rs1FromDiv | pds_ds_rs1FromMiss;
   assign iqRs2Wait = pds_ds_rs2Wait | pds_ds_rs2FromDiv | pds_ds_rs2FromMiss;
 
   issue_queue #(.N(N)) u_iq (.pds_ds_rs1Wait(iqRs1Wait), .pds_ds_rs2Wait(iqRs2Wait), .*);
+
+  // ---- slot-sd contract at the IQ boundary, checked on the uop the IQ sees -------
+  int slotsdErrors = 0;
+  always @(negedge clk) if (resetn && pds_ds_valid && !dsSkip) begin
+    if ((u_iq.pds_ds_rs1FromDiv && u_iq.pds_ds_rs2FromDiv)
+        || (u_iq.pds_ds_rs1FromMiss && u_iq.pds_ds_rs2FromMiss)
+        || ((u_iq.pds_ds_rs1FromDiv || u_iq.pds_ds_rs1FromMiss) && !u_iq.pds_ds_rs1Wait)
+        || ((u_iq.pds_ds_rs2FromDiv || u_iq.pds_ds_rs2FromMiss) && !u_iq.pds_ds_rs2Wait)) begin
+      if (slotsdErrors < 5)
+        $display("ERROR chk_slotsd: div %b miss %b wait %b",
+                 {u_iq.pds_ds_rs1FromDiv, u_iq.pds_ds_rs2FromDiv},
+                 {u_iq.pds_ds_rs1FromMiss, u_iq.pds_ds_rs2FromMiss},
+                 {u_iq.pds_ds_rs1Wait, u_iq.pds_ds_rs2Wait});
+      slotsdErrors++;
+    end
+  end
 
   always #5 clk = ~clk;
 
@@ -78,7 +101,7 @@ module issue_queue_tb;
   localparam int GROUP_MISS = 7;
 
   typedef struct {
-    bit       killed, committed, rdWE, use1, use2, isBranch, store;
+    bit       killed, committed, rdWE, use1, use2, isBranch, store, skip;
     int       group;                                  // 1/3/4/5, 0 none, 6 div, 7 miss
     int       tag1, tag2, rdTag, oldTag, rd;
     int       prod1, prod2;                           // producer ids, -1 = ready
@@ -190,7 +213,8 @@ module issue_queue_tb;
       for (int s = 0; s < 4; s++) if (!liveMask[s] && snapFree < 0) snapFree = s;
       if (snapFree < 0) begin x.isBranch = 0; x.group = 1; end
     end
-    x.rdWE = !x.isBranch && !x.store;
+    if ($urandom_range(99) < skipRate && !x.isBranch) begin x.skip = 1; x.store = 0; x.group = 0; if (extBusy[GROUP_DIV] == nextId) extBusy[GROUP_DIV] = -1; end
+    x.rdWE = !x.isBranch && !x.store && !x.skip;
     x.use1 = $urandom_range(99) < 85;
     x.use2 = x.isBranch || x.store || $urandom_range(99) < 55;
     r1 = $urandom_range(7);
@@ -209,7 +233,7 @@ module issue_queue_tb;
     x.snap = x.isBranch ? snapFree : $urandom_range(3);
     if (x.isBranch) liveMask[snapFree] = 1'b1;
     x.slot = -1; x.disp = -1; x.grant = -1; x.land = -1; x.resolveAt = -1; x.killAt = -1;
-    if (x.group == GROUP_DIV || x.group == GROUP_MISS) extBusy[x.group] = nextId;
+    if (!x.skip && (x.group == GROUP_DIV || x.group == GROUP_MISS)) extBusy[x.group] = nextId;
     u[nextId] = x;
     inflight.push_back(nextId);
     r2Id = nextId;
@@ -309,6 +333,7 @@ module issue_queue_tb;
       foreach (inflight[i]) if (u[inflight[i]].disp >= 0) n++;
       if (n >= 16 || $urandom_range(99) < bp) robCredit = 1'b0;
     end
+    dsSkip = dsId >= 0 && u[dsId].skip;
     pds_ds_rs1FromDiv = 1'b0; pds_ds_rs1FromMiss = 1'b0;
     pds_ds_rs2FromDiv = 1'b0; pds_ds_rs2FromMiss = 1'b0;
     if (dsId >= 0) begin
@@ -420,7 +445,11 @@ module issue_queue_tb;
       if (u[w].isBranch) u[w].resolveAt = t + 4;
       if (u[w].group == GROUP_DIV || u[w].group == GROUP_MISS) u[w].land = t + 2 + $urandom_range(landMax - 2);
     end
-    if (ds_fire) begin
+    if (ds_fire && u[dsId].skip) begin
+      if (!iq_dispatchReady) cov["skipFullIq"]++;
+      if (!iq_dispatchReady && occ[tail]) cov["skipOverLive"]++;
+      u[dsId].disp = t;
+    end else if (ds_fire) begin
       occ[tail] = 1;
       rowId[tail] = dsId;
       u[dsId].slot = tail;
@@ -438,6 +467,7 @@ module issue_queue_tb;
       bit  done;
       done = u[id].grant >= 0 && t >= u[id].grant + (u[id].isBranch ? 5 : u[id].group >= 3 && u[id].group <= 5 ? u[id].group : 1);
       if (u[id].group == GROUP_DIV || u[id].group == GROUP_MISS) done = u[id].land >= 0 && t > u[id].land;
+      if (u[id].skip) done = u[id].disp >= 0 && t > u[id].disp;
       if (done) begin
         u[id].committed = 1;
         if (u[id].rdWE) begin cmap[u[id].rd] = u[id].rdTag; freeQ.push_back(u[id].oldTag); end
@@ -516,6 +546,7 @@ module issue_queue_tb;
   initial begin
     void'($value$plusargs("seed=%d", seed));
     void'($value$plusargs("cycles=%d", cycles));
+    void'($value$plusargs("skip=%d", skipRate));
     void'($urandom(seed));
     errors = 0;
     phase("realistic", cycles, 10, 10, 10, 2, 3, 5, 10);
@@ -526,7 +557,7 @@ module issue_queue_tb;
     phase("killfire", 4 * cycles, 0, 5, 90, 0, 3, 5, 10);   // dense mispredicts: rows die as they are written
     foreach (cov[k]) $display("  cov %-20s %0d", k, cov[k]);
     begin
-      string need [22] = '{"fireInMispredict", "fireInFlush", "tailStall", "steal", "killGranted", "late2", "chainPlusLate", "newHit",
+      string need [24] = '{"skipFullIq", "skipOverLive", "fireInMispredict", "fireInFlush", "tailStall", "steal", "killGranted", "late2", "chainPlusLate", "newHit",
                            "grantPrevious", "landNow", "dispatchTerm", "ownColumn", "extNow",
                            "extTerm", "reuseEdgeL4", "reuseEdgeL5", "resolveOnDispatch", "wrap",
                            "divWake", "missWake", "flush", "mispredict"};
@@ -535,6 +566,7 @@ module issue_queue_tb;
         errors++;
       end
     end
+    errors += slotsdErrors;
     if (errors == 0) $display("PASS  issue_queue");
     else             $fatal(1, "FAIL  issue_queue (%0d errors)", errors);
     $finish;

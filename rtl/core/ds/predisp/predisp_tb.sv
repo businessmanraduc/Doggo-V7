@@ -16,7 +16,10 @@
 //   The IQ model clears a slot's column on reuse and never sets a row's own.
 //   - chk_slot: a waiting source names its producer's slot (0055).
 //   - chk_valid, chk_pass, chk_bmask, chk_stall: register and control.
-//  Phases: realistic, stall-heavy (held upkeep), kill-heavy; reset each phase.
+//  Skip uops (system, illegal: no result, no IQ row) fire past a busy tail
+//  slot; the slot mirror must keep the live producer (ds_iqFire).
+//  Phases: realistic, stall-heavy (held upkeep), kill-heavy, skip-heavy with
+//  rare grants (full IQ); reset each phase.
 // ================================================================================
 
 `include "uop_defs.svh"
@@ -36,6 +39,7 @@ module predisp_tb;
   logic [LATENCY_W-1:0] r2_pds_latency = '0;
   logic                 stall_pds_ds = 1'b0;
   logic                 stall_r2_pds;
+  logic                 ds_iqFire = 1'b0;
   logic                 ex_resolveValid = 1'b0;
   logic [1:0]           ex_resolveSnapshot = '0;
   logic                 ex_resolveMispredict = 1'b0;
@@ -61,7 +65,7 @@ module predisp_tb;
 
   // ---- uops --------------------------------------------------------------------
   typedef struct {
-    bit       killed, committed, rdWE, use1, use2;
+    bit       killed, committed, rdWE, use1, use2, skip;
     int       tag1, tag2, rdTag, oldTag, rd, lat;     // lat 0 = no result group
     int       prod1, prod2;                           // producer ids, -1 = ready
     int       slot;
@@ -95,7 +99,7 @@ module predisp_tb;
 
   longint   t;
   int       errors;
-  int       bp, killRate;                             // percent per cycle, per mille
+  int       bp, killRate, skipRate, grantRate;        // percent, per mille, percent, percent
   int       cov [string];
   bit       staleVectors = 1'b1;                      // 1: held vectors keep woken bits
 
@@ -189,15 +193,16 @@ module predisp_tb;
     r1 = $urandom_range(7);
     r2s = $urandom_range(99) < 15 ? r1 : $urandom_range(7);
     x.killed = 0; x.committed = 0;
+    x.skip = $urandom_range(99) < skipRate;
     x.use1 = $urandom_range(99) < 85;
     x.use2 = $urandom_range(99) < 70;
     x.tag1 = amap[r1];
     x.tag2 = amap[r2s];
     rp = $urandom_range(99);
     x.lat = rp < 45 ? 1 : rp < 65 ? 3 : rp < 82 ? 4 : 5;
-    x.rdWE = $urandom_range(99) < 85;
+    x.rdWE = !x.skip && $urandom_range(99) < 85;
     x.latVec = '0;
-    if (x.rdWE || $urandom_range(1)) begin
+    if (!x.skip && (x.rdWE || $urandom_range(1))) begin
       case (x.lat)
         1: x.latVec[LATENCY_1] = 1'b1;
         3: x.latVec[LATENCY_3] = 1'b1;
@@ -243,7 +248,7 @@ module predisp_tb;
 
   // ---- one cycle ---------------------------------------------------------------
   task automatic step();
-    bit       fire, kill, flush, mis;
+    bit       fire, iqFire, kill, flush, mis;
     int       keep, gslot;
     bit [7:0] vis, gPrev, w3, w4, w5, gNow, clr;
     bit [3:0] clear;
@@ -287,8 +292,12 @@ module predisp_tb;
     iq_wakeL3        = w3;
     iq_wakeL4        = w4;
     iq_wakeL5        = w5;
-    stall_pds_ds     = (dsId >= 0) && (!slotFree(tail) || $urandom_range(99) < bp);
+    stall_pds_ds     = (dsId >= 0) && ((!u[dsId].skip && !slotFree(tail)) || $urandom_range(99) < bp);
     fire             = (dsId >= 0) && !stall_pds_ds;
+    iqFire           = fire && !u[dsId].skip;
+    ds_iqFire        = iqFire;
+    if (fire && u[dsId].skip && !slotFree(tail)) cov["skipBusyTail"]++;
+    if (fire && u[dsId].skip && occ[tail] && latOf(rowId[tail]) != 0) cov["skipLiveProducer"]++;
 
     kill = 0; flush = 0; mis = 0; keep = -1;
     ex_resolveValid = $urandom_range(99) < 10;
@@ -299,7 +308,7 @@ module predisp_tb;
       if ($urandom_range(3) == 0) begin flush = 1; keep = inflight[0] - 1; cm_flush = 1'b1; end
       else begin
         int cand [$];
-        foreach (inflight[i]) if (u[inflight[i]].disp >= 0 && u[inflight[i]].disp < t) cand.push_back(inflight[i]);
+        foreach (inflight[i]) if (u[inflight[i]].disp >= 0 && u[inflight[i]].disp < t && !u[inflight[i]].skip) cand.push_back(inflight[i]);
         if (cand.size() > 0) begin
           mis = 1; keep = cand[$urandom_range(cand.size() - 1)];
           ex_resolveValid = 1'b1; ex_resolveMispredict = 1'b1;
@@ -324,7 +333,7 @@ module predisp_tb;
 
     // ---- grant -----------------------------------------------------------------
     gslot = -1;
-    if (rdy.size() > 0) begin
+    if (rdy.size() > 0 && $urandom_range(99) < grantRate) begin
       if ($urandom_range(99) < 70) begin
         gslot = rdy[0];
         foreach (rdy[i]) if (rowId[rdy[i]] < rowId[gslot]) gslot = rdy[i];
@@ -368,33 +377,37 @@ module predisp_tb;
         fail("chk_slot", $sformatf("uop %0d rs1Slot %b", dsId, pds_ds_rs1Slot));
       if (pds_ds_rs2Wait && (ps[1] < 0 || pds_ds_rs2Slot != 8'(1) << u[ps[1]].slot))
         fail("chk_slot", $sformatf("uop %0d rs2Slot %b", dsId, pds_ds_rs2Slot));
-      if (vis[tail]) fail("chk_bench", "tail slot visible");
+      if (x.skip) begin
+        u[dsId].disp = t;
+      end else begin
+        if (vis[tail]) fail("chk_bench", "tail slot visible");
 
-      clr = (pds_ds_depL1 & (gPrev | gNow)) | (pds_ds_depL3 & w3) | (pds_ds_depL4 & w4) | (pds_ds_depL5 & w5);
-      if (clr != 0) cov["dispatchCorrection"]++;
-      occ[tail] = 1;
-      rowId[tail] = dsId;
-      d1[tail] = pds_ds_depL1 & ~(gPrev | gNow) & ~iq_tailSlot;
-      d3[tail] = pds_ds_depL3 & ~w3 & ~iq_tailSlot;
-      d4[tail] = pds_ds_depL4 & ~w4 & ~iq_tailSlot;
-      d5[tail] = pds_ds_depL5 & ~w5 & ~iq_tailSlot;
-      cnt[tail] = int'(pds_ds_waitCount) - $countones(clr);
-      if (cnt[tail] < 0) begin fail("chk_count", "negative after dispatch"); cnt[tail] = 0; end
-      u[dsId].slot = tail;
-      u[dsId].disp = t;
-      tail = (tail + 1) % 8;
+        clr = (pds_ds_depL1 & (gPrev | gNow)) | (pds_ds_depL3 & w3) | (pds_ds_depL4 & w4) | (pds_ds_depL5 & w5);
+        if (clr != 0) cov["dispatchCorrection"]++;
+        occ[tail] = 1;
+        rowId[tail] = dsId;
+        d1[tail] = pds_ds_depL1 & ~(gPrev | gNow) & ~iq_tailSlot;
+        d3[tail] = pds_ds_depL3 & ~w3 & ~iq_tailSlot;
+        d4[tail] = pds_ds_depL4 & ~w4 & ~iq_tailSlot;
+        d5[tail] = pds_ds_depL5 & ~w5 & ~iq_tailSlot;
+        cnt[tail] = int'(pds_ds_waitCount) - $countones(clr);
+        if (cnt[tail] < 0) begin fail("chk_count", "negative after dispatch"); cnt[tail] = 0; end
+        u[dsId].slot = tail;
+        u[dsId].disp = t;
+        tail = (tail + 1) % 8;
+      end
     end
     if (stall_pds_ds && dsId >= 0) cov["stall"]++;
 
     // ---- wakes into the existing rows, then the grant leaves -------------------
     for (int k = 0; k < 8; k++)
-      if (occ[k] && !(fire && k == u[dsId].slot) && k != gslot) begin
+      if (occ[k] && !(iqFire && k == u[dsId].slot) && k != gslot) begin
         bit [7:0] c = (d1[k] & gNow) | (d3[k] & w3) | (d4[k] & w4) | (d5[k] & w5);
         cnt[k] -= $countones(c);
         d1[k] &= ~gNow; d3[k] &= ~w3; d4[k] &= ~w4; d5[k] &= ~w5;
         if (cnt[k] < 0) begin fail("chk_count", $sformatf("slot %0d negative", k)); cnt[k] = 0; end
       end
-    if (fire)                                         // reuse clears the column, after the wakes
+    if (iqFire)                                       // reuse clears the column, after the wakes
       for (int k = 0; k < 8; k++)
         if (k != u[dsId].slot) begin
           int c = u[dsId].slot;
@@ -412,7 +425,8 @@ module predisp_tb;
     // ---- commit: oldest, granted and complete ----------------------------------
     if (inflight.size() > 0) begin
       int id = inflight[0];
-      if (u[id].grant >= 0 && t >= u[id].grant + u[id].lat) begin
+      if (u[id].skip ? u[id].disp >= 0 && t > u[id].disp
+                     : u[id].grant >= 0 && t >= u[id].grant + u[id].lat) begin
         u[id].committed = 1;
         if (u[id].rdWE) begin cmap[u[id].rd] = u[id].rdTag; freeQ.push_back(u[id].oldTag); end
         if (u[id].rdWE && lastWriter[u[id].rdTag] == id) lastWriter[u[id].rdTag] = -1;
@@ -438,9 +452,11 @@ module predisp_tb;
   endtask
 
   // ---- phases ------------------------------------------------------------------
-  task automatic phase(string name, int cycles, int bpIn, int killIn);
+  task automatic phase(string name, int cycles, int bpIn, int killIn, int skipIn, int grantIn);
     bp = bpIn;
+    grantRate = grantIn;
     killRate = killIn;
+    skipRate = skipIn;
     resetn = 1'b0;
     modelReset();
     r2_pds_valid = 1'b0;
@@ -461,13 +477,15 @@ module predisp_tb;
     void'($urandom(seed));
     errors = 0;
     t = 0;
-    phase("realistic", cycles, 15, 8);
-    phase("stall", cycles, 70, 4);
-    phase("kill", cycles, 25, 60);
+    phase("realistic", cycles, 15, 8, 5, 100);
+    phase("stall", cycles, 70, 4, 5, 100);
+    phase("kill", cycles, 25, 60, 5, 100);
+    phase("skip", cycles, 5, 2, 30, 35);
     foreach (cov[k]) $display("  cov %-20s %0d", k, cov[k]);
     begin
-      string need [12] = '{"same", "bypass", "holdVisible", "count2", "upkeepL1", "upkeepL3",
-                           "upkeepL4", "upkeepL5", "dispatchCorrection", "stall", "flush", "mispredict"};
+      string need [14] = '{"same", "bypass", "holdVisible", "count2", "upkeepL1", "upkeepL3",
+                           "upkeepL4", "upkeepL5", "dispatchCorrection", "stall", "flush", "mispredict",
+                           "skipBusyTail", "skipLiveProducer"};
       foreach (need[i]) if (!cov.exists(need[i]) || cov[need[i]] == 0) begin
         $display("ERROR chk_cov: stimulus misses %s", need[i]);
         errors++;

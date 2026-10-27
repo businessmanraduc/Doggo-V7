@@ -101,6 +101,8 @@ module rob (
     | pds_ds_class[CLASS_SYSTEM];
   logic rb_dispatchException; assign rb_dispatchException = pds_ds_illegal
     | pds_ds_system[SYSTEM_ECALL] | pds_ds_system[SYSTEM_EBREAK];
+  logic rb_dispatchRefetch;   assign rb_dispatchRefetch   =
+      pds_ds_system[SYSTEM_MRET]  | pds_ds_system[SYSTEM_FENCEI];
 
   // ---- pointers & occupancy state ----------------------------------------------
   logic [3:0]   rb_head, rb_headP1, rb_tail;
@@ -131,7 +133,7 @@ module rob (
       if (rb_dispatchHit[j]) begin
         rb_done[j]        <= rb_dispatchDone;
         rb_exception[j]   <= rb_dispatchException;
-        rb_refetch[j]     <= 1'b0;
+        rb_refetch[j]     <= rb_dispatchRefetch;
       end else begin
         if (rb_completionHit[j]) begin
           rb_done[j]      <= 1'b1;
@@ -204,9 +206,9 @@ module rob (
       cm_flush     <= 1'b0;
     end else begin
       cm_valid     <= rb_commit;
-      cm_exception <= rb_commit & |(rb_exception  & rb_headOneHot);
-      cm_refetch   <= rb_commit & |(rb_refetch    & rb_headOneHot);
-      cm_flush     <= rb_commit & |((rb_exception | rb_refetch) & rb_headOneHot);
+      cm_exception <= rb_commit & |  ( rb_exception & rb_headOneHot);
+      cm_refetch   <= rb_commit & | ((~rb_exception & rb_refetch) & rb_headOneHot);
+      cm_flush     <= rb_commit & | (( rb_exception | rb_refetch) & rb_headOneHot);
     end
   end
 

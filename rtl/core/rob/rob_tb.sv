@@ -1,14 +1,15 @@
 // ================================================================================
 //  rob_tb: reorder buffer against a cycle-exact model
 // ================================================================================
-//  The bench plays dispatch (fires only when ready and not in a kill cycle;
-//  class / system / illegal chosen to make the entry pending, done or trapping),
+//  The bench plays dispatch (fires when ready, also in kill cycles, where the
+//  ROB must drop it; class / system / illegal chosen to make the entry pending,
+//  done, trapping or refetching: mret and fence.i),
 //  the completion port (one per live, pending entry, killed ones filtered),
 //  branch resolve (mispredict on a live pending entry) and LQ marks (live,
 //  not head). Checks:
 //   - chk_ready: rob_dispatchReady, rob_empty, ds_robIndex each cycle.
 //   - chk_commit: cm_valid each cycle; payload, exception, refetch, flush on
-//   every commit.
+//   every commit. An exception hides a refetch mark of the same entry.
 //   - chk_badAddress: last completion's address on every commit of
 //   an entry that completed through the port.
 // ================================================================================
@@ -165,7 +166,9 @@ module rob_tb;
     expValid = commit;
     expWord  = word[head];
     expExc   = commit && exc[head];
-    expRef   = commit && ref_[head];
+    expRef   = commit && ref_[head] && !exc[head];
+    if (commit && ref_[head] && exc[head]) cov["excHidesRef"]++;
+    if (commit && ref_[head] && dsDone[head] && !exc[head]) cov["dispatchRef"]++;
     expBadKnown = badKnown[head];
     expBad      = badAddr[head];
     expFlush = commit && (exc[head] || ref_[head]);
@@ -231,8 +234,9 @@ module rob_tb;
     ds_done      = $urandom_range(99) < pDone;
     ds_exception = ds_done && $urandom_range(99) < 10;
     ds_payload   = shapeWord(randomWord(), ds_done, ds_exception);
-    if (count < N && !kill && $urandom_range(99) < pDispatch) begin
+    if (count < N && $urandom_range(99) < pDispatch) begin
       ds_fire = 1'b1;
+      if (kill) cov["fireInKill"]++;
       if (commit && count == N - 1) cov["fireCommit15"]++;
     end
 
@@ -259,7 +263,7 @@ module rob_tb;
         done[tail]   = ds_done;
         dsDone[tail] = ds_done;
         exc[tail]    = ds_exception;
-        ref_[tail]   = 1'b0;
+        ref_[tail]   = ds_payload[4 + SYSTEM_MRET] | ds_payload[4 + SYSTEM_FENCEI];
         word[tail]   = ds_payload;
         bornAt[tail] = t;
         badKnown[tail] = 1'b0;
@@ -307,7 +311,7 @@ module rob_tb;
     repeat (2) step();
     foreach (cov[k]) $display("  cov %-14s %0d", k, cov[k]);
     foreach (cov[k]) if (cov[k] == 0) begin $display("ERROR coverage hole %s", k); errors++; end
-    if (cov.size() < 11) begin $display("ERROR coverage list short (%0d)", cov.size()); errors++; end
+    if (cov.size() < 14) begin $display("ERROR coverage list short (%0d)", cov.size()); errors++; end
     if (errors == 0) $display("PASS  rob (%0d cycles)", checks);
     else             $fatal(1, "FAIL  rob (%0d errors)", errors);
     $finish;

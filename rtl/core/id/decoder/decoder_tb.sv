@@ -3,7 +3,7 @@
 // ================================================================================
 //  Reference: every 16-bit encoding is expanded to its 32-bit form (spec
 //  tables), then the 32-bit form is decoded by opcode, funct3 and funct7 into
-//  the expected uop. Both registers (R1/R2, R2/PreDS) are modelled cycle by
+//  the expected uop. Both registers (D1/D2, D2/PreDS) are modelled cycle by
 //  cycle with their own stall. rs1Use/rs2Use are driven as the decoder makes
 //  them (x0 folded). Phase 1: all 49152 16-bit encodings. Phase 2: 32-bit
 //  vectors, opcodes and funct7 biased. Phase 3: mixed stream under random
@@ -19,34 +19,34 @@ module decoder_tb;
   localparam int MW = 4;
 
   logic                 clk = 1'b0;
-  logic [31:0]          d_r1_instr = 32'h0000_0013;   // nop: 32-bit words end in 11
-  logic                 d_r1_rvc = 1'b0;
-  logic [30:0]          d_r1_pc = '0;
-  logic [MW-1:0]        d_r1_meta = '0;
-  logic                 d_r1_rs1Use = 1'b0;
-  logic                 d_r1_rs2Use = 1'b0;
-  logic                 d_r1_isCall = 1'b0;
-  logic                 d_r1_isRet = 1'b0;
-  logic [30:0]          d_r1_branchTarget = '0;
-  logic [30:0]          d_r1_seq = '0;
-  logic                 stall_r1_r2 = 1'b0;
-  logic                 stall_r2_pds = 1'b0;
-  logic [30:0]          r2_pds_pc, r2_pds_branchTarget, r2_pds_seq;
-  logic [MW-1:0]        r2_pds_meta;
-  logic                 r2_pds_isCall, r2_pds_isRet, r2_pds_rvc;
-  logic [CLASS_W-1:0]   r2_pds_class;
-  logic [LATENCY_W-1:0] r2_pds_latency;
-  logic                 r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor;
-  logic                 r2_pds_selSlt, r2_pds_sltUnsigned, r2_pds_shiftRight, r2_pds_shiftArith;
-  logic                 r2_pds_xIsPC, r2_pds_xIsZero, r2_pds_zIsImm, r2_pds_zIsZero;
-  logic                 r2_pds_branchUseLt, r2_pds_branchInvert;
-  logic                 r2_pds_mulSignedA, r2_pds_mulSignedB, r2_pds_mulHigh;
-  logic                 r2_pds_divSigned, r2_pds_divRemainder;
-  logic [2:0]           r2_pds_func3;
-  logic [SYSTEM_W-1:0]  r2_pds_system;
-  logic                 r2_pds_serialising;
-  logic [31:0]          r2_pds_immediate;
-  logic                 r2_pds_illegal;
+  logic [31:0]          d_d1_instr = 32'h0000_0013;   // nop: 32-bit words end in 11
+  logic                 d_d1_rvc = 1'b0;
+  logic [30:0]          d_d1_pc = '0;
+  logic [MW-1:0]        d_d1_meta = '0;
+  logic                 d_d1_rs1Use = 1'b0;
+  logic                 d_d1_rs2Use = 1'b0;
+  logic                 d_d1_isCall = 1'b0;
+  logic                 d_d1_isRet = 1'b0;
+  logic [30:0]          d_d1_branchTarget = '0;
+  logic [30:0]          d_d1_seq = '0;
+  logic                 stall_d1_d2 = 1'b0;
+  logic                 stall_d2_pds = 1'b0;
+  logic [30:0]          d2_pds_pc, d2_pds_branchTarget, d2_pds_seq;
+  logic [MW-1:0]        d2_pds_meta;
+  logic                 d2_pds_isCall, d2_pds_isRet, d2_pds_rvc;
+  logic [CLASS_W-1:0]   d2_pds_class;
+  logic [LATENCY_W-1:0] d2_pds_latency;
+  logic                 d2_pds_sub, d2_pds_selArith, d2_pds_selAnd, d2_pds_selOr, d2_pds_selXor;
+  logic                 d2_pds_selSlt, d2_pds_sltUnsigned, d2_pds_shiftRight, d2_pds_shiftArith;
+  logic                 d2_pds_xIsPC, d2_pds_xIsZero, d2_pds_zIsImm, d2_pds_zIsZero;
+  logic                 d2_pds_branchUseLt, d2_pds_branchInvert;
+  logic                 d2_pds_mulSignedA, d2_pds_mulSignedB, d2_pds_mulHigh;
+  logic                 d2_pds_divSigned, d2_pds_divRemainder;
+  logic [2:0]           d2_pds_func3;
+  logic [SYSTEM_W-1:0]  d2_pds_system;
+  logic                 d2_pds_serialising;
+  logic [31:0]          d2_pds_immediate;
+  logic                 d2_pds_illegal;
 
   decoder #(.MW(MW)) u_dut (.*);
 
@@ -171,7 +171,7 @@ module decoder_tb;
     endcase
   endfunction
 
-  // ---- Zba Zbb Zbs Zicond: mask/match from the spec encoding tables -----------
+  // ---- Zba Zbb Zbs Zicond: mask/match from the spec encoding tables ------------
   localparam int K_ALUN = 0, K_SHADD = 1, K_MINMAX = 2, K_CZERO = 3, K_SHIFT = 4;
   localparam logic [31:0] M_R = 32'hFE00707F, M_U = 32'hFFF0707F;
   localparam int NB = 36;
@@ -352,7 +352,7 @@ module decoder_tb;
     return l;
   endfunction
 
-  // ---- R1/R2 and R2/PreDS register model ---------------------------------------
+  // ---- D1/D2 and D2/PreDS register model ---------------------------------------
   typedef struct {
     bit            known;
     ref_t          r;
@@ -366,19 +366,19 @@ module decoder_tb;
   slot_t m_r1r2 = '{default: '0}, m_r2pds = '{default: '0};
 
   always @(posedge clk) begin
-    if (!stall_r1_r2) begin
+    if (!stall_d1_d2) begin
       m_r1r2.known        <= 1'b1;
-      m_r1r2.r            <= reference(d_r1_instr, d_r1_rvc);
-      m_r1r2.instr        <= d_r1_instr;
-      m_r1r2.rvc          <= d_r1_rvc;
-      m_r1r2.pc           <= d_r1_pc;
-      m_r1r2.branchTarget <= d_r1_branchTarget;
-      m_r1r2.seq          <= d_r1_seq;
-      m_r1r2.meta         <= d_r1_meta;
-      m_r1r2.isCall       <= d_r1_isCall;
-      m_r1r2.isRet        <= d_r1_isRet;
+      m_r1r2.r            <= reference(d_d1_instr, d_d1_rvc);
+      m_r1r2.instr        <= d_d1_instr;
+      m_r1r2.rvc          <= d_d1_rvc;
+      m_r1r2.pc           <= d_d1_pc;
+      m_r1r2.branchTarget <= d_d1_branchTarget;
+      m_r1r2.seq          <= d_d1_seq;
+      m_r1r2.meta         <= d_d1_meta;
+      m_r1r2.isCall       <= d_d1_isCall;
+      m_r1r2.isRet        <= d_d1_isRet;
     end
-    if (!stall_r2_pds) m_r2pds <= m_r1r2;
+    if (!stall_d2_pds) m_r2pds <= m_r1r2;
   end
 
   // ---- checks ------------------------------------------------------------------
@@ -397,68 +397,68 @@ module decoder_tb;
 
   always @(negedge clk) if (m_r2pds.known) begin
     e = m_r2pds.r;
-    nHeld1 += int'(stall_r1_r2);
-    nHeld2 += int'(stall_r2_pds);
-    if ({r2_pds_pc, r2_pds_branchTarget, r2_pds_seq, r2_pds_meta, r2_pds_isCall, r2_pds_isRet,
-         r2_pds_rvc}
+    nHeld1 += int'(stall_d1_d2);
+    nHeld2 += int'(stall_d2_pds);
+    if ({d2_pds_pc, d2_pds_branchTarget, d2_pds_seq, d2_pds_meta, d2_pds_isCall, d2_pds_isRet,
+         d2_pds_rvc}
         !== {m_r2pds.pc, m_r2pds.branchTarget, m_r2pds.seq, m_r2pds.meta, m_r2pds.isCall,
              m_r2pds.isRet, m_r2pds.rvc})
       fail("chk_pass", "pass-through fields");
-    if (r2_pds_illegal !== !e.legal) fail("chk_illegal", $sformatf("illegal %0d", r2_pds_illegal));
+    if (d2_pds_illegal !== !e.legal) fail("chk_illegal", $sformatf("illegal %0d", d2_pds_illegal));
     if (!e.legal) begin
       nIll++;
-      if (r2_pds_class !== '0 || r2_pds_system !== '0)
-        fail("chk_illgate", $sformatf("class %b system %b", r2_pds_class, r2_pds_system));
-      if (r2_pds_latency !== '0 || r2_pds_serialising !== 1'b0)
-        fail("chk_illgate", $sformatf("latency %b ser %0d", r2_pds_latency, r2_pds_serialising));
+      if (d2_pds_class !== '0 || d2_pds_system !== '0)
+        fail("chk_illgate", $sformatf("class %b system %b", d2_pds_class, d2_pds_system));
+      if (d2_pds_latency !== '0 || d2_pds_serialising !== 1'b0)
+        fail("chk_illgate", $sformatf("latency %b ser %0d", d2_pds_latency, d2_pds_serialising));
     end else begin
       nChk++;
       for (int k = 0; k < CLASS_W; k++) nClass[k] += int'(e.cls[k]);
       if (!m_r2pds.rvc && bopOf(m_r2pds.instr) >= 0) nB[bopOf(m_r2pds.instr)]++;
       for (int k = 0; k < SYSTEM_W; k++) nSys[k] += int'(e.sys[k]);
-      if (r2_pds_class !== e.cls)
-        fail("chk_class", $sformatf("class %b exp %b", r2_pds_class, e.cls));
-      if (r2_pds_system !== e.sys)
-        fail("chk_system", $sformatf("system %b exp %b", r2_pds_system, e.sys));
-      if (r2_pds_latency !== latencyOf(e.cls))
-        fail("chk_latency", $sformatf("latency %b exp %b", r2_pds_latency, latencyOf(e.cls)));
-      if (r2_pds_serialising !== (e.cls[CLASS_CSR] || e.cls[CLASS_SYSTEM]))
-        fail("chk_serial", $sformatf("serialising %0d", r2_pds_serialising));
-      if ({r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor, r2_pds_selSlt,
-           r2_pds_sltUnsigned} !== {e.sub, e.arith, e.andOp, e.orOp, e.xorOp, e.slt, e.sltU})
+      if (d2_pds_class !== e.cls)
+        fail("chk_class", $sformatf("class %b exp %b", d2_pds_class, e.cls));
+      if (d2_pds_system !== e.sys)
+        fail("chk_system", $sformatf("system %b exp %b", d2_pds_system, e.sys));
+      if (d2_pds_latency !== latencyOf(e.cls))
+        fail("chk_latency", $sformatf("latency %b exp %b", d2_pds_latency, latencyOf(e.cls)));
+      if (d2_pds_serialising !== (e.cls[CLASS_CSR] || e.cls[CLASS_SYSTEM]))
+        fail("chk_serial", $sformatf("serialising %0d", d2_pds_serialising));
+      if ({d2_pds_sub, d2_pds_selArith, d2_pds_selAnd, d2_pds_selOr, d2_pds_selXor, d2_pds_selSlt,
+           d2_pds_sltUnsigned} !== {e.sub, e.arith, e.andOp, e.orOp, e.xorOp, e.slt, e.sltU})
         fail("chk_alu", $sformatf("sub arith and or xor slt sltU %b exp %b",
-             {r2_pds_sub, r2_pds_selArith, r2_pds_selAnd, r2_pds_selOr, r2_pds_selXor,
-              r2_pds_selSlt, r2_pds_sltUnsigned}, {e.sub, e.arith, e.andOp, e.orOp, e.xorOp,
+             {d2_pds_sub, d2_pds_selArith, d2_pds_selAnd, d2_pds_selOr, d2_pds_selXor,
+              d2_pds_selSlt, d2_pds_sltUnsigned}, {e.sub, e.arith, e.andOp, e.orOp, e.xorOp,
               e.slt, e.sltU}));
-      if ({r2_pds_xIsPC, r2_pds_zIsImm} !== {e.xPc, e.zImm})
-        fail("chk_opsel", $sformatf("xIsPC zIsImm %b", {r2_pds_xIsPC, r2_pds_zIsImm}));
-      if (r2_pds_xIsZero !== (!e.rs1Use && !e.xPc) || r2_pds_zIsZero !== (!e.rs2Use && !e.zImm))
-        fail("chk_zero", $sformatf("xIsZero zIsZero %b", {r2_pds_xIsZero, r2_pds_zIsZero}));
+      if ({d2_pds_xIsPC, d2_pds_zIsImm} !== {e.xPc, e.zImm})
+        fail("chk_opsel", $sformatf("xIsPC zIsImm %b", {d2_pds_xIsPC, d2_pds_zIsImm}));
+      if (d2_pds_xIsZero !== (!e.rs1Use && !e.xPc) || d2_pds_zIsZero !== (!e.rs2Use && !e.zImm))
+        fail("chk_zero", $sformatf("xIsZero zIsZero %b", {d2_pds_xIsZero, d2_pds_zIsZero}));
       if (e.cls[CLASS_BITM]) begin
-        if ({r2_pds_shiftRight, r2_pds_shiftArith} !== {e.shR, e.shA})
-          fail("chk_shift", $sformatf("right arith %b", {r2_pds_shiftRight, r2_pds_shiftArith}));
+        if ({d2_pds_shiftRight, d2_pds_shiftArith} !== {e.shR, e.shA})
+          fail("chk_shift", $sformatf("right arith %b", {d2_pds_shiftRight, d2_pds_shiftArith}));
         // 16-bit shifts: shamt only, funct7 field reads 0 (direction in the flags)
-        if (m_r2pds.rvc ? r2_pds_immediate[11:0] !== {7'd0, e.imm[4:0]}
-                        : r2_pds_immediate[11:0] !== e.imm[11:0])
-          fail("chk_imm", $sformatf("shift imm %h exp %h", r2_pds_immediate[11:0], e.imm[11:0]));
+        if (m_r2pds.rvc ? d2_pds_immediate[11:0] !== {7'd0, e.imm[4:0]}
+                        : d2_pds_immediate[11:0] !== e.imm[11:0])
+          fail("chk_imm", $sformatf("shift imm %h exp %h", d2_pds_immediate[11:0], e.imm[11:0]));
       end
       if ((e.cls & ((1 << CLASS_ALU) | (1 << CLASS_XALU) | (1 << CLASS_LOAD) | (1 << CLASS_STORE)
-                  | (1 << CLASS_JALR) | (1 << CLASS_CSR))) != 0 && r2_pds_immediate !== e.imm)
-        fail("chk_imm", $sformatf("imm %h exp %h", r2_pds_immediate, e.imm));
+                  | (1 << CLASS_JALR) | (1 << CLASS_CSR))) != 0 && d2_pds_immediate !== e.imm)
+        fail("chk_imm", $sformatf("imm %h exp %h", d2_pds_immediate, e.imm));
       if ((e.cls & ((1 << CLASS_LOAD) | (1 << CLASS_STORE) | (1 << CLASS_BRANCH) | (1 << CLASS_MUL)
                   | (1 << CLASS_DIV) | (1 << CLASS_CSR) | (1 << CLASS_XALU) | (1 << CLASS_BITM)))
-          != 0 && !(m_r2pds.rvc && e.cls[CLASS_BITM]) && r2_pds_func3 !== e.f3)
-        fail("chk_f3", $sformatf("f3 %b exp %b", r2_pds_func3, e.f3));
-      if (e.cls[CLASS_BRANCH] && {r2_pds_branchUseLt, r2_pds_branchInvert} !== {e.f3[2], e.f3[0]})
-        fail("chk_branch", $sformatf("useLt invert %b", {r2_pds_branchUseLt, r2_pds_branchInvert}));
-      if (e.cls[CLASS_MUL] && {r2_pds_mulSignedA, r2_pds_mulSignedB, r2_pds_mulHigh}
+          != 0 && d2_pds_func3 !== e.f3)
+        fail("chk_f3", $sformatf("f3 %b exp %b", d2_pds_func3, e.f3));
+      if (e.cls[CLASS_BRANCH] && {d2_pds_branchUseLt, d2_pds_branchInvert} !== {e.f3[2], e.f3[0]})
+        fail("chk_branch", $sformatf("useLt invert %b", {d2_pds_branchUseLt, d2_pds_branchInvert}));
+      if (e.cls[CLASS_MUL] && {d2_pds_mulSignedA, d2_pds_mulSignedB, d2_pds_mulHigh}
           !== {e.f3 == 3'b001 || e.f3 == 3'b010, e.f3 == 3'b001, e.f3 != 3'b000})
         fail("chk_mul", $sformatf("sA sB hi %b f3 %b",
-             {r2_pds_mulSignedA, r2_pds_mulSignedB, r2_pds_mulHigh}, e.f3));
-      if (e.cls[CLASS_DIV] && {r2_pds_divSigned, r2_pds_divRemainder}
+             {d2_pds_mulSignedA, d2_pds_mulSignedB, d2_pds_mulHigh}, e.f3));
+      if (e.cls[CLASS_DIV] && {d2_pds_divSigned, d2_pds_divRemainder}
           !== {e.f3 == 3'b100 || e.f3 == 3'b110, e.f3[1]})
         fail("chk_div", $sformatf("signed rem %b f3 %b",
-             {r2_pds_divSigned, r2_pds_divRemainder}, e.f3));
+             {d2_pds_divSigned, d2_pds_divRemainder}, e.f3));
     end
   end
 
@@ -510,18 +510,18 @@ module decoder_tb;
     ref_t r;
     @(negedge clk);
     r = reference(ins, rvc);
-    d_r1_instr        = ins;
-    d_r1_rvc          = rvc;
-    d_r1_rs1Use       = r.rs1Use;
-    d_r1_rs2Use       = r.rs2Use;
-    d_r1_pc           = 31'($urandom);
-    d_r1_meta         = MW'($urandom);
-    d_r1_isCall       = 1'($urandom);
-    d_r1_isRet        = 1'($urandom);
-    d_r1_branchTarget = 31'($urandom);
-    d_r1_seq          = 31'($urandom);
-    stall_r1_r2       = st1;
-    stall_r2_pds      = st2;
+    d_d1_instr        = ins;
+    d_d1_rvc          = rvc;
+    d_d1_rs1Use       = r.rs1Use;
+    d_d1_rs2Use       = r.rs2Use;
+    d_d1_pc           = 31'($urandom);
+    d_d1_meta         = MW'($urandom);
+    d_d1_isCall       = 1'($urandom);
+    d_d1_isRet        = 1'($urandom);
+    d_d1_branchTarget = 31'($urandom);
+    d_d1_seq          = 31'($urandom);
+    stall_d1_d2       = st1;
+    stall_d2_pds      = st2;
   endtask
 
   int unsigned seed = 1;
@@ -554,7 +554,7 @@ module decoder_tb;
     drive(32'h0000_0013, 1'b0, 1'b0, 1'b0);
     @(negedge clk);
 
-    $display("checked %0d legal, %0d illegal, held r1/r2 %0d, held r2/pds %0d",
+    $display("checked %0d legal, %0d illegal, held d1/d2 %0d, held d2/pds %0d",
              nChk, nIll, nHeld1, nHeld2);
     $display("class counts %p, system counts %p", nClass, nSys);
     cov = nHeld1 != 0 && nHeld2 != 0 && nIll != 0;

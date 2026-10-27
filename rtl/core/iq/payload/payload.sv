@@ -11,7 +11,7 @@
 //  Mechanisms:
 //   - One packed word per slot in one LUTRAM array (separate arrays per field
 //   round each field up to 4 bits).
-//   - Write at the IQ tail slot on ds_fire/read by registered grant, both
+//   - Write at the IQ tail slot on ds_iqFire/read by registered grant, both
 //   one-hot slots encoded for LUTRAM accessing.
 // ================================================================================
 `include "uop_defs.svh"
@@ -21,7 +21,7 @@ module payload #(
 ) (
   input  logic                clk,
   // ---- dispatch ----------------------------------------------------------------
-  input  logic                ds_fire,
+  input  logic                ds_iqFire,
   input  logic [7:0]          iq_tailSlot,
   input  logic [3:0]          ds_robIndex,
   // ---- Dispatch-1/Dispatch inter-stage pipeline register (rename side) ---------
@@ -190,7 +190,7 @@ module payload #(
   // -- plain vector array bcuz yosys 0.62 drops an unpacked array of word_t ------
   logic [$bits(pl_writeWord)-1:0] pl_ram [8];
   always_ff @(posedge clk)
-    if (ds_fire) pl_ram[encode8(iq_tailSlot)] <= pl_writeWord;
+    if (ds_iqFire) pl_ram[encode8(iq_tailSlot)] <= pl_writeWord;
 
   // ---- Payload-Read/Register-File inter-stage pipeline register ----------------
   always_ff @(posedge clk)
