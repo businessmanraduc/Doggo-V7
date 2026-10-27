@@ -5,29 +5,29 @@ tools: Yosys 0.62, nextpnr-35f1433
 
 | floor | median | mean | ceil |
 |---|---|---|---|
-| 159.62 | 169.25 | 168.76 | 179.53 |
+| 140.37 | 162.26 | 161.17 | 178.00 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 167.28 | u_dut.rb_done        -> u_dut.rb_headReady |
-| 2 | 178.19 | u_dut.ex_resolveValid -> u_dut.rb_count |
-| 3 | 159.62 | u_dut.ex_resolveMispredict -> u_dut.rb_count |
-| 4 | 179.53 | u_dut.rb_done        -> u_dut.rb_headReady |
-| 5 | 172.21 | u_dut.ex_resolveValid -> u_dut.rb_done |
-| 6 | 173.64 | u_dut.rb_refetch     -> u_dut.cm_flush |
-| 7 | 168.75 | u_s2.r               -> u_dut.rb_count |
-| 8 | 168.89 | u_dut.ex_resolveMispredict -> u_dut.rb_count |
-| 9 | 163.35 | u_dut.rb_done        -> u_dut.rb_headReady |
-| 10 | 171.00 | u_dut.ex_resolveMispredict -> u_dut.rb_count |
-| 11 | 165.54 | u_dut.ex_resolveValid -> u_dut.rb_done |
-| 12 | 165.10 | u_dut.ex_resolveValid -> u_dut.rb_done |
-| 13 | 171.59 | u_dut.ex_resolveValid -> u_dut.rb_count |
-| 14 | 164.47 | u_dut.ex_resolveMispredict -> u_dut.rb_count |
-| 15 | 169.61 | u_dut.ex_resolveValid -> u_dut.rb_done |
-| 16 | 171.20 | u_dut.rb_refetch     -> u_dut.cm_flush |
-| 17 | 160.77 | u_dut.ex_resolveValid -> u_dut.rb_count |
-| 18 | 160.21 | u_dut.rb_headOneHot  -> u_dut.rb_headReady |
-| 19 | 169.89 | u_dut.ex_resolveMispredict -> u_dut.rb_done |
-| 20 | 174.40 | u_dut.rb_headOneHot  -> u_dut.rb_headReady |
+| 1 | 148.72 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 2 | 157.95 | u_s1.r               -> u_dut.rb_count |
+| 3 | 163.13 | u_dut.ex_resolveMispredict -> u_dut.rb_done |
+| 4 | 166.81 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 5 | 178.00 | u_dut.ex_resolveValid -> u_dut.rb_count |
+| 6 | 172.53 | u_dut.ex_resolveValid -> u_dut.rb_refetch |
+| 7 | 172.65 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 8 | 162.84 | u_dut.cm_flush       -> u_dut.rb_count |
+| 9 | 166.53 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 10 | 157.90 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 11 | 153.40 | u_dut.rb_count       -> u_dut.rb_refetch |
+| 12 | 157.63 | u_dut.rb_count       -> u_dut.rb_refetch |
+| 13 | 157.04 | u_dut.rb_count       -> u_dut.rb_done |
+| 14 | 161.68 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 15 | 165.48 | u_s1.r               -> u_dut.rb_refetch |
+| 16 | 140.37 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 17 | 157.16 | u_dut.cm_flush       -> u_dut.rb_refetch |
+| 18 | 165.78 | u_s1.r               -> u_dut.rb_done |
+| 19 | 166.83 | u_dut.ex_resolveValid -> u_dut.rb_refetch |
+| 20 | 150.99 | u_dut.ex_resolveValid -> u_dut.rb_done |

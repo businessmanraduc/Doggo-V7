@@ -5,29 +5,29 @@ tools: Yosys 0.62, nextpnr-35f1433
 
 | floor | median | mean | ceil |
 |---|---|---|---|
-| 268.89 | 305.49 | 307.27 | 344.00 |
+| 257.93 | 304.83 | 304.11 | 346.86 |
 
 ## census (worst path per seed)
 
 | seed | fmax | start -> end |
 |---|---|---|
-| 1 | 281.45 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 2 | 307.98 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 3 | 334.67 | u_s5.r               -> u_dut.pds_ds_seq |
-| 4 | 343.29 | u_s5.r               -> u_dut.pds_ds_branchTarget |
-| 5 | 313.87 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 6 | 321.23 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 7 | 268.89 | u_s5.r               -> u_dut.pds_ds_serialising |
-| 8 | 293.26 | u_s5.r               -> u_dut.pds_ds_serialising |
-| 9 | 302.57 | u_s5.r               -> u_dut.pds_ds_seq |
-| 10 | 330.36 | u_s5.r               -> u_dut.pds_ds_selXor |
-| 11 | 288.35 | u_s5.r               -> u_dut.pds_ds_branchTarget |
-| 12 | 299.49 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 13 | 304.69 | u_s5.r               -> u_dut.pds_ds_selXor |
-| 14 | 296.38 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 15 | 314.76 | u_s5.r               -> u_dut.pds_ds_pc |
-| 16 | 336.70 | u_s5.r               -> u_dut.pds_ds_branchTarget |
-| 17 | 344.00 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 18 | 269.91 | u_s5.r               -> u_dut.pds_ds_seq |
-| 19 | 287.19 | u_s5.r               -> u_dut.pds_ds_immediate |
-| 20 | 306.28 | u_s5.r               -> u_dut.pds_ds_system |
+| 1 | 275.56 | u_s5.r               -> u_dut.pds_ds_selXor |
+| 2 | 273.30 | u_s5.r               -> u_dut.pds_ds_immediate |
+| 3 | 293.43 | u_s5.r               -> u_dut.pds_ds_branchTarget |
+| 4 | 287.94 | u_s5.r               -> u_dut.pds_ds_system |
+| 5 | 318.88 | u_s5.r               -> u_dut.pds_ds_immediate |
+| 6 | 303.58 | u_s5.r               -> u_dut.pds_ds_selXor |
+| 7 | 335.68 | u_s5.r               -> u_dut.pds_ds_class |
+| 8 | 315.46 | u_s5.r               -> u_dut.pds_ds_seq |
+| 9 | 278.16 | u_s5.r               -> u_dut.pds_ds_system |
+| 10 | 293.77 | u_s5.r               -> u_dut.pds_ds_immediate |
+| 11 | 346.86 | u_s5.r               -> u_dut.pds_ds_immediate |
+| 12 | 332.12 | u_s5.r               -> u_dut.pds_ds_branchTarget |
+| 13 | 314.47 | u_s5.r               -> u_dut.pds_ds_pc |
+| 14 | 342.94 | u_s5.r               -> u_dut.pds_ds_pc |
+| 15 | 306.09 | u_s5.r               -> u_dut.pds_ds_pc |
+| 16 | 332.89 | u_s5.r               -> u_dut.pds_ds_immediate |
+| 17 | 306.18 | u_s5.r               -> u_dut.pds_ds_system |
+| 18 | 257.93 | u_s5.r               -> u_dut.pds_ds_rvc |
+| 19 | 272.63 | u_s5.r               -> u_dut.pds_ds_immediate |
+| 20 | 294.29 | u_s5.r               -> u_dut.pds_ds_shiftArith |
