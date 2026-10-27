@@ -36,7 +36,7 @@ module predisp_tb;
   logic [4:0]           r2_pds_rdIndex = '0;
   logic [3:0]           r2_pds_branchMask = '0;
   logic [1:0]           r2_pds_snapshot = '0;
-  logic [LATENCY_W-1:0] r2_pds_latency = '0;
+  logic [LATENCY_W-1:0] d2_pds_latency = '0;
   logic                 stall_pds_ds = 1'b0;
   logic                 stall_r2_pds;
   logic                 ds_iqFire = 1'b0;
@@ -281,7 +281,7 @@ module predisp_tb;
       r2_pds_rs1Tag = x.tag1; r2_pds_rs2Tag = x.tag2; r2_pds_rdTag = x.rdTag; r2_pds_rdOldTag = x.oldTag;
       r2_pds_rs1Use = x.use1; r2_pds_rs2Use = x.use2; r2_pds_rdWriteEnable = x.rdWE;
       r2_pds_rdIndex = x.rd; r2_pds_branchMask = x.mask; r2_pds_snapshot = x.snap;
-      r2_pds_latency = x.latVec;
+      d2_pds_latency = x.latVec;
     end else begin
       r2_pds_valid = 1'b0;
       r2_pds_rs1Tag = $urandom; r2_pds_rs2Tag = $urandom; r2_pds_rs1Use = $urandom; r2_pds_rs2Use = $urandom;

@@ -1,7 +1,7 @@
 // ================================================================================
 //  dispatch_tb -- DS fire and stall against an ROB, IQ and predisp model
 // ================================================================================
-//  R2 fields change every cycle, also under a stall, so a flag sampled at the
+//  D2 fields change every cycle, also under a stall, so a flag sampled at the
 //  wrong time shows up. The environment reacts to the DUT's outputs: predisp
 //  holds on stall and clears on a kill, the ROB counts fires and commits and
 //  drops a fire in a kill cycle, the IQ ready flag is random.
@@ -23,9 +23,9 @@ module dispatch_tb;
 
   logic               clk = 1'b0;
   logic               resetn = 1'b0;
-  logic [CLASS_W-1:0] r2_pds_class = '0;
-  logic               r2_pds_illegal = 1'b0;
-  logic               r2_pds_serialising = 1'b0;
+  logic [CLASS_W-1:0] d2_pds_class = '0;
+  logic               d2_pds_illegal = 1'b0;
+  logic               d2_pds_serialising = 1'b0;
   logic               pds_ds_valid = 1'b0;
   logic               pds_ds_serialising = 1'b0;
   logic               iq_dispatchReady = 1'b0;
@@ -36,7 +36,7 @@ module dispatch_tb;
 
   dispatch u_dut (
     .clk, .resetn,
-    .r2_pds_class, .r2_pds_illegal, .r2_pds_serialising,
+    .d2_pds_class, .d2_pds_illegal, .d2_pds_serialising,
     .pds_ds_valid, .pds_ds_serialising,
     .iq_dispatchReady, .rob_dispatchReady, .rob_empty,
     .stall_pds_ds, .ds_fire, .ds_iqGo, .ds_iqFire
@@ -81,8 +81,8 @@ module dispatch_tb;
       refSkip  <= 1'b0;
       refBlock <= 1'b0;
     end else begin
-      if (!refStall) refSkip <= r2_pds_class[CLASS_SYSTEM] | r2_pds_illegal;
-      refBlock <= (refStall ? pds_ds_serialising : r2_pds_serialising) & !(rob_empty & !refFire);
+      if (!refStall) refSkip <= d2_pds_class[CLASS_SYSTEM] | d2_pds_illegal;
+      refBlock <= (refStall ? pds_ds_serialising : d2_pds_serialising) & !(rob_empty & !refFire);
     end
   end
 
@@ -103,9 +103,9 @@ module dispatch_tb;
       else if (!stall_pds_ds)
         pds_ds_valid <= r2Valid;
       if (!stall_pds_ds) begin
-        pds_ds_serialising <= r2_pds_serialising;
+        pds_ds_serialising <= d2_pds_serialising;
         dsSeq              <= r2Seq;
-        dsSkip             <= r2_pds_class[CLASS_SYSTEM] | r2_pds_illegal;
+        dsSkip             <= d2_pds_class[CLASS_SYSTEM] | d2_pds_illegal;
       end
     end
   end
@@ -121,13 +121,13 @@ module dispatch_tb;
       c = CLASS_CSR;
     else
       c = $urandom_range(CLASS_DIV);
-    r2_pds_class       = CLASS_W'(1) << c;
-    r2_pds_illegal     = $urandom_range(99) < 3;
-    r2_pds_serialising = c == CLASS_CSR || c == CLASS_SYSTEM;
+    d2_pds_class       = CLASS_W'(1) << c;
+    d2_pds_illegal     = $urandom_range(99) < 3;
+    d2_pds_serialising = c == CLASS_CSR || c == CLASS_SYSTEM;
     if (!r2Valid) begin
-      r2_pds_class       = CLASS_W'($urandom());
-      r2_pds_illegal     = 1'($urandom());
-      r2_pds_serialising = 1'($urandom());
+      d2_pds_class       = CLASS_W'($urandom());
+      d2_pds_illegal     = 1'($urandom());
+      d2_pds_serialising = 1'($urandom());
     end
   endtask
 
@@ -175,8 +175,8 @@ module dispatch_tb;
     if (ds_fire && flush)                                   cov["fireInFlush"]++;
     if (pds_ds_valid && !rob_dispatchReady)                 cov["robFull"]++;
     if (stall_pds_ds && prevStall)                          cov["stallRun"]++;
-    if (stall_pds_ds && r2_pds_serialising != pds_ds_serialising) cov["r2DiffersInStall"]++;
-    if (!stall_pds_ds && r2_pds_serialising != pds_ds_serialising) cov["r2DiffersOnLoad"]++;
+    if (stall_pds_ds && d2_pds_serialising != pds_ds_serialising) cov["r2DiffersInStall"]++;
+    if (!stall_pds_ds && d2_pds_serialising != pds_ds_serialising) cov["r2DiffersOnLoad"]++;
   endtask
 
   task automatic phase(string name, int cycles, int commit, int iq, int serial, int skip,

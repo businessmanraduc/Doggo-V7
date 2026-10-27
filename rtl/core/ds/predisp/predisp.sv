@@ -3,7 +3,7 @@
 // ================================================================================
 //  RD2             PreDS                        DS
 //  rename R2  ───► predisp (tag -> slot) ───┬─► dispatch (IQ/ROB write)
-//  decoder R2 ───► predisp_payload (hold) ──┘
+//  decoder D2 ───► predisp_payload (hold) ──┘
 // ================================================================================
 //  Turns each source tag into a one-hot slot split by producer's latency
 //  group, plug a per-source wait flag. DS copies both into the IQ row.
@@ -34,7 +34,8 @@ module predisp (
   input  logic                 r2_pds_rdWriteEnable,
   input  logic [3:0]           r2_pds_branchMask,
   input  logic [1:0]           r2_pds_snapshot,
-  input  logic [LATENCY_W-1:0] r2_pds_latency,
+  // ---- Decode-2/Dispatch-1 inter-stage pipeline register -----------------------
+  input  logic [LATENCY_W-1:0] d2_pds_latency,
   // ---- inter-stage pipeline register controls ----------------------------------
   input  logic                 stall_pds_ds,        // DS cannot take the register
   output logic                 stall_r2_pds,        // to rename and the decoder
@@ -90,8 +91,8 @@ module predisp (
   logic       pds_dsProducer;
 
   assign pds_r2Latency =
-    {r2_pds_latency[LATENCY_5], r2_pds_latency[LATENCY_4],
-     r2_pds_latency[LATENCY_3], r2_pds_latency[LATENCY_1]}
+    {d2_pds_latency[LATENCY_5], d2_pds_latency[LATENCY_4],
+     d2_pds_latency[LATENCY_3], d2_pds_latency[LATENCY_1]}
   & {4{r2_pds_rdWriteEnable}};
 
   always_ff @(posedge clk) begin
@@ -173,7 +174,7 @@ module predisp (
       pds_ds_rdIndex       <= r2_pds_rdIndex;
       pds_ds_rdWriteEnable <= r2_pds_rdWriteEnable;
       pds_ds_snapshot      <= r2_pds_snapshot;
-      pds_ds_latency       <= r2_pds_latency;
+      pds_ds_latency       <= d2_pds_latency;
       pds_ds_depL1         <= pds_freshL1;
       pds_ds_depL3         <= pds_freshL3;
       pds_ds_depL4         <= pds_freshL4;

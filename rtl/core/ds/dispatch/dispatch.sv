@@ -9,9 +9,9 @@
 module dispatch (
   input  logic               clk,
   input  logic               resetn,
-  input  logic [CLASS_W-1:0] r2_pds_class,
-  input  logic               r2_pds_illegal,
-  input  logic               r2_pds_serialising,
+  input  logic [CLASS_W-1:0] d2_pds_class,
+  input  logic               d2_pds_illegal,
+  input  logic               d2_pds_serialising,
   input  logic               pds_ds_valid,
   input  logic               pds_ds_serialising,
   input  logic               iq_dispatchReady,
@@ -30,8 +30,8 @@ module dispatch (
       dp_serialBlock <= 1'b0;
     end else begin
       if (!stall_pds_ds)
-        dp_skipIq    <= r2_pds_class[CLASS_SYSTEM] | r2_pds_illegal;
-      dp_serialBlock <= (stall_pds_ds ? pds_ds_serialising : r2_pds_serialising)
+        dp_skipIq    <= d2_pds_class[CLASS_SYSTEM] | d2_pds_illegal;
+      dp_serialBlock <= (stall_pds_ds ? pds_ds_serialising : d2_pds_serialising)
         & !(rob_empty & !ds_fire);
     end
   end

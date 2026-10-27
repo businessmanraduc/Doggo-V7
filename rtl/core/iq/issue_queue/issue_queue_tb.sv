@@ -40,7 +40,7 @@ module issue_queue_tb;
   logic [4:0]           r2_pds_rdIndex = '0;
   logic [3:0]           r2_pds_branchMask = '0;
   logic [1:0]           r2_pds_snapshot = '0;
-  logic [LATENCY_W-1:0] r2_pds_latency = '0;
+  logic [LATENCY_W-1:0] d2_pds_latency = '0;
   logic                 stall_pds_ds, stall_r2_pds;
   logic                 ex_resolveValid = 1'b0;
   logic [1:0]           ex_resolveSnapshot = '0;
@@ -78,7 +78,7 @@ module issue_queue_tb;
 
   issue_queue #(.N(N)) u_iq (.pds_ds_rs1Wait(iqRs1Wait), .pds_ds_rs2Wait(iqRs2Wait), .*);
 
-  // ---- slot-sd contract at the IQ boundary, checked on the uop the IQ sees -------
+  // ---- slot-sd contract at the IQ boundary, checked on the uop the IQ sees -----
   int slotsdErrors = 0;
   always @(negedge clk) if (resetn && pds_ds_valid && !dsSkip) begin
     if ((u_iq.pds_ds_rs1FromDiv && u_iq.pds_ds_rs2FromDiv)
@@ -369,7 +369,7 @@ module issue_queue_tb;
         GROUP_DIV, GROUP_MISS: lv = 1 << LATENCY_DIV;
         default: lv = 0;
       endcase
-      r2_pds_latency = lv;
+      d2_pds_latency = lv;
     end else begin
       r2_pds_valid = 1'b0;
       r2_pds_rs1Tag = $urandom; r2_pds_rs2Tag = $urandom; r2_pds_rs1Use = $urandom; r2_pds_rs2Use = $urandom;

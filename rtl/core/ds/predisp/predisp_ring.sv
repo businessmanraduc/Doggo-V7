@@ -50,7 +50,7 @@ module predisp_ring (
     .r2_pds_rdWriteEnable (s1[0]),
     .r2_pds_branchMask    (s1[4:1]),
     .r2_pds_snapshot      (s1[6:5]),
-    .r2_pds_latency       (s1[11:7]),
+    .d2_pds_latency       (s1[11:7]),
     .stall_pds_ds,
     .ds_iqFire,
     .ex_resolveValid      (s1[12]),

@@ -22,9 +22,9 @@ module dispatch_ring (
   dispatch u_dut (
     .clk,
     .resetn             (s0[31] | s0[30]),
-    .r2_pds_class       (s0[CLASS_W-1:0]),
-    .r2_pds_illegal     (s0[12]),
-    .r2_pds_serialising (s0[13]),
+    .d2_pds_class       (s0[CLASS_W-1:0]),
+    .d2_pds_illegal     (s0[12]),
+    .d2_pds_serialising (s0[13]),
     .pds_ds_valid       (s0[14]),
     .pds_ds_serialising (s0[15]),
     .iq_dispatchReady   (s0[16]),

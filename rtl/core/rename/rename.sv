@@ -3,7 +3,7 @@
 // ================================================================================
 //  D               RD1           RD2             PreDS
 //  predecoder ─┬─► rename R1 ──► rename R2 ──┬─► predisp
-//              └─► decoder R1 ─► decoder R2 ─┘
+//              └─► decoder D1 ─► decoder D2 ─┘
 // ================================================================================
 //  32 architectural -> 64 physical registers (6-bit tags), 1 uop/cycle.
 //
