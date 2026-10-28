@@ -48,7 +48,7 @@ module predisp_tb;
   logic [7:0]           iq_wakeL3 = '0, iq_wakeL4 = '0, iq_wakeL5 = '0;
   logic                 pds_ds_valid;
   logic [5:0]           pds_ds_rs1Tag, pds_ds_rs2Tag, pds_ds_rdTag, pds_ds_rdOldTag;
-  logic                 pds_ds_rs1Use, pds_ds_rs2Use, pds_ds_rdWriteEnable;
+  logic                 pds_ds_rdWriteEnable;
   logic [4:0]           pds_ds_rdIndex;
   logic [3:0]           pds_ds_branchMask;
   logic [1:0]           pds_ds_snapshot;
@@ -262,7 +262,7 @@ module predisp_tb;
     if (dsId >= 0) begin
       uop_t x = u[dsId];
       if (pds_ds_rs1Tag != x.tag1 || pds_ds_rs2Tag != x.tag2 || pds_ds_rdTag != x.rdTag
-          || pds_ds_rdOldTag != x.oldTag || pds_ds_rs1Use != x.use1 || pds_ds_rs2Use != x.use2
+          || pds_ds_rdOldTag != x.oldTag
           || pds_ds_rdIndex != x.rd || pds_ds_rdWriteEnable != x.rdWE
           || pds_ds_snapshot != x.snap || pds_ds_latency != x.latVec)
         fail("chk_pass", $sformatf("uop %0d fields", dsId));

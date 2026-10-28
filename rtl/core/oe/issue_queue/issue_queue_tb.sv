@@ -49,7 +49,7 @@ module issue_queue_tb;
   logic [N-1:0]         iq_tailSlot, iq_visible, iq_grantPrevious, iq_wakeL3, iq_wakeL4, iq_wakeL5;
   logic                 pds_ds_valid;
   logic [5:0]           pds_ds_rs1Tag, pds_ds_rs2Tag, pds_ds_rdTag, pds_ds_rdOldTag;
-  logic                 pds_ds_rs1Use, pds_ds_rs2Use, pds_ds_rdWriteEnable;
+  logic                 pds_ds_rdWriteEnable;
   logic [4:0]           pds_ds_rdIndex;
   logic [3:0]           pds_ds_branchMask;
   logic [1:0]           pds_ds_snapshot;

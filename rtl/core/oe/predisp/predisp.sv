@@ -58,8 +58,6 @@ module predisp (
   output logic [5:0]           pds_ds_rs2Tag,
   output logic [5:0]           pds_ds_rdTag,
   output logic [5:0]           pds_ds_rdOldTag,
-  output logic                 pds_ds_rs1Use,
-  output logic                 pds_ds_rs2Use,
   output logic [4:0]           pds_ds_rdIndex,
   output logic                 pds_ds_rdWriteEnable,
   output logic [3:0]           pds_ds_branchMask,
@@ -169,8 +167,6 @@ module predisp (
       pds_ds_rs2Tag        <= r2_pds_rs2Tag;
       pds_ds_rdTag         <= r2_pds_rdTag;
       pds_ds_rdOldTag      <= r2_pds_rdOldTag;
-      pds_ds_rs1Use        <= r2_pds_rs1Use;
-      pds_ds_rs2Use        <= r2_pds_rs2Use;
       pds_ds_rdIndex       <= r2_pds_rdIndex;
       pds_ds_rdWriteEnable <= r2_pds_rdWriteEnable;
       pds_ds_snapshot      <= r2_pds_snapshot;

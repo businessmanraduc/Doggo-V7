@@ -24,7 +24,7 @@ module predisp_ring (
   logic                 stall_r2_pds;
   logic                 pds_ds_valid;
   logic [5:0]           pds_ds_rs1Tag, pds_ds_rs2Tag, pds_ds_rdTag, pds_ds_rdOldTag;
-  logic                 pds_ds_rs1Use, pds_ds_rs2Use, pds_ds_rdWriteEnable;
+  logic                 pds_ds_rdWriteEnable;
   logic [4:0]           pds_ds_rdIndex;
   logic [3:0]           pds_ds_branchMask;
   logic [1:0]           pds_ds_snapshot;
@@ -65,15 +65,15 @@ module predisp_ring (
     .iq_wakeL5            ({s2[31:25], s3[0]}),
     .stall_r2_pds,
     .pds_ds_valid, .pds_ds_rs1Tag, .pds_ds_rs2Tag, .pds_ds_rdTag, .pds_ds_rdOldTag,
-    .pds_ds_rs1Use, .pds_ds_rs2Use, .pds_ds_rdIndex, .pds_ds_rdWriteEnable,
+    .pds_ds_rdIndex, .pds_ds_rdWriteEnable,
     .pds_ds_branchMask, .pds_ds_snapshot, .pds_ds_latency,
     .pds_ds_depL1, .pds_ds_depL3, .pds_ds_depL4, .pds_ds_depL5, .pds_ds_rs1Wait, .pds_ds_rs2Wait
   );
 
-  xor_sink #(.W(79)) u_snk (.clk, .q, .d({
+  xor_sink #(.W(77)) u_snk (.clk, .q, .d({
     stall_r2_pds,
     pds_ds_valid, pds_ds_rs1Tag, pds_ds_rs2Tag, pds_ds_rdTag, pds_ds_rdOldTag,
-    pds_ds_rs1Use, pds_ds_rs2Use, pds_ds_rdIndex, pds_ds_rdWriteEnable,
+    pds_ds_rdIndex, pds_ds_rdWriteEnable,
     pds_ds_branchMask, pds_ds_snapshot, pds_ds_latency,
     pds_ds_depL1, pds_ds_depL3, pds_ds_depL4, pds_ds_depL5, pds_ds_rs1Wait, pds_ds_rs2Wait}));
 
