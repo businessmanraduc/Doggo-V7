@@ -14,3 +14,17 @@ rtl/core/<module>/
                      #   the timing top handed to nextpnr for solo P&R.
   fmax.md            # the seed sweep result + worst-path census.
 ```
+
+## Hierarchy
+
+A top is a module whose folder also holds the folders of the modules it
+instantiates, no more, no less. Cells from `rtl/common` are the only exception.
+The sim and Fmax flows pick up every submodule under `DIR` on their own.
+
+```
+rtl/core/
+  phantooom_core.sv  # whole core (+ _tb, _ring, fmax.md)
+  fe/                # Front End
+  oe/                # Out-of-order Engine: decode, rename, dispatch, ROB, IQ
+  ex/                # Execution Engine
+```
