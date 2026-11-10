@@ -1,4 +1,4 @@
-# payload solo Fmax
+# issue_payload solo Fmax
 
 ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 tools: Yosys 0.62, nextpnr-35f1433

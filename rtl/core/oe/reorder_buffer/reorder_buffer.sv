@@ -4,7 +4,7 @@
 //  dispatch (DS)  ──fire───┐                    ┌──► ready, empty, robIndex to DS
 //  respipe  (s+8) ──done───┤   ROB, 16 entries  │
 //  LQ       (M4)  ──mark───┼─► tail ····· head ─┴──► cm_* to rename, LSU, CSR, FE
-//  resolve  (EX)  ──rewind─┘
+//  resolve  (EX0)  ──rewind─┘
 // ================================================================================
 //  Mechanisms:
 //   - Occupancy one-hot: ds_fire shifts up, mispredict loads rewind count,
@@ -17,7 +17,7 @@
 // ================================================================================
 `include "uop_defs.svh"
 
-module rob (
+module reorder_buffer (
   input  logic                clk,
   input  logic                resetn,
   // ---- Dispatch-1/Dispatch inter-stage pipeline register -----------------------
@@ -44,10 +44,10 @@ module rob (
   // ---- LQ ordering violation ---------------------------------------------------
   input  logic                lq_violationValid,
   input  logic [3:0]          lq_violationRobIndex,
-  // ---- branch resolve (EX) -----------------------------------------------------
-  input  logic                ex_resolveValid,
-  input  logic                ex_resolveMispredict,
-  input  logic [3:0]          ex_resolveRobIndex,
+  // ---- branch resolve (EX0) ----------------------------------------------------
+  input  logic                ex0_resolveValid,
+  input  logic                ex0_resolveMispredict,
+  input  logic [3:0]          ex0_resolveRobIndex,
   // ---- commit (registered) -----------------------------------------------------
   output logic                cm_valid,
   output logic                cm_exception,
@@ -115,7 +115,7 @@ module rob (
   assign rob_dispatchReady = !rb_count[N];
 
   // ---- late selects ------------------------------------------------------------
-  logic rb_mispredict; assign rb_mispredict = ex_resolveValid & ex_resolveMispredict;
+  logic rb_mispredict; assign rb_mispredict = ex0_resolveValid & ex0_resolveMispredict;
   logic rb_commit;     assign rb_commit     = rb_headReady    & !cm_flush;
 
   // ---- per-entry status --------------------------------------------------------
@@ -156,7 +156,7 @@ module rob (
     | (rb_count[1] & ds_fire & rb_dispatchDone);
 
   // ---- occupancy ---------------------------------------------------------------
-  logic [3:0] rb_rewindDistance; assign rb_rewindDistance = ex_resolveRobIndex - rb_head;
+  logic [3:0] rb_rewindDistance; assign rb_rewindDistance = ex0_resolveRobIndex - rb_head;
   logic [N:0] rb_countBase;      assign rb_countBase =
     rb_mispredict ? (N+1)'(2) << rb_rewindDistance :
     ds_fire       ? rb_count  << 1                 :
@@ -181,8 +181,8 @@ module rob (
       rb_head         <= rb_head   + 4'(rb_commit);
       rb_headP1       <= rb_headP1 + 4'(rb_commit);
       rb_headOneHot   <= rb_commit ? {rb_headOneHot[N-2:0], rb_headOneHot[N-1]} : rb_headOneHot;
-      rb_tail         <= rb_mispredict ? ex_resolveRobIndex + 4'd1 : rb_tail + 4'(ds_fire);
-      rb_tailOneHot   <= rb_mispredict ? N'(1) << (ex_resolveRobIndex + 4'd1)
+      rb_tail         <= rb_mispredict ? ex0_resolveRobIndex + 4'd1 : rb_tail + 4'(ds_fire);
+      rb_tailOneHot   <= rb_mispredict ? N'(1) << (ex0_resolveRobIndex + 4'd1)
                        : ds_fire       ? {rb_tailOneHot[N-2:0], rb_tailOneHot[N-1]}
                        : rb_tailOneHot;
       rb_count        <= rb_commit ? rb_countBase >> 1 : rb_countBase;

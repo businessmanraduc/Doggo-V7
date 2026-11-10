@@ -1,5 +1,5 @@
 // ================================================================================
-//  payload_ring -- ring wrapper: every DUT port register-bounded
+//  issue_payload_ring -- ring wrapper: every DUT port register-bounded
 //  ports are the ring convention: clk, perturb (in), q (out)
 // ================================================================================
 //  ds_iqFire is one LUT on two flops (dispatch fire from registered state).
@@ -7,7 +7,7 @@
 
 `include "uop_defs.svh"
 
-module payload_ring (
+module issue_payload_ring (
   input  logic clk,
   input  logic perturb,
   output logic q
@@ -26,7 +26,7 @@ module payload_ring (
   logic [223:0] src; assign src = {s6, s5, s4, s3, s2, s1, s0};
   logic [187:0] sinkData;
 
-  payload #(.MW(1)) u_dut (
+  issue_payload #(.MW(1)) u_dut (
     .clk,
     .ds_iqFire             (src[204] & src[205]),
     .iq_tailSlot           (src[7:0]),

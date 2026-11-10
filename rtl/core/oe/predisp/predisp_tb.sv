@@ -40,9 +40,9 @@ module predisp_tb;
   logic                 stall_pds_ds = 1'b0;
   logic                 stall_r2_pds;
   logic                 ds_iqFire = 1'b0;
-  logic                 ex_resolveValid = 1'b0;
-  logic [1:0]           ex_resolveSnapshot = '0;
-  logic                 ex_resolveMispredict = 1'b0;
+  logic                 ex0_resolveValid = 1'b0;
+  logic [1:0]           ex0_resolveSnapshot = '0;
+  logic                 ex0_resolveMispredict = 1'b0;
   logic                 cm_flush = 1'b0;
   logic [7:0]           iq_tailSlot = '0, iq_visible = '0, iq_grantPrevious = '0;
   logic [7:0]           iq_wakeL3 = '0, iq_wakeL4 = '0, iq_wakeL5 = '0;
@@ -300,9 +300,9 @@ module predisp_tb;
     if (fire && u[dsId].skip && occ[tail] && latOf(rowId[tail]) != 0) cov["skipLiveProducer"]++;
 
     kill = 0; flush = 0; mis = 0; keep = -1;
-    ex_resolveValid = $urandom_range(99) < 10;
-    ex_resolveSnapshot = $urandom;
-    ex_resolveMispredict = 1'b0;
+    ex0_resolveValid = $urandom_range(99) < 10;
+    ex0_resolveSnapshot = $urandom;
+    ex0_resolveMispredict = 1'b0;
     cm_flush = 1'b0;
     if ($urandom_range(999) < killRate && inflight.size() > 0) begin
       if ($urandom_range(3) == 0) begin flush = 1; keep = inflight[0] - 1; cm_flush = 1'b1; end
@@ -311,12 +311,12 @@ module predisp_tb;
         foreach (inflight[i]) if (u[inflight[i]].disp >= 0 && u[inflight[i]].disp < t && !u[inflight[i]].skip) cand.push_back(inflight[i]);
         if (cand.size() > 0) begin
           mis = 1; keep = cand[$urandom_range(cand.size() - 1)];
-          ex_resolveValid = 1'b1; ex_resolveMispredict = 1'b1;
+          ex0_resolveValid = 1'b1; ex0_resolveMispredict = 1'b1;
         end
       end
       kill = flush | mis;
     end
-    clear = ex_resolveValid ? 4'(1) << ex_resolveSnapshot : 4'b0;
+    clear = ex0_resolveValid ? 4'(1) << ex0_resolveSnapshot : 4'b0;
     #1;
 
     if (stall_r2_pds !== (stall_pds_ds && r2Id >= 0)) fail("chk_stall", $sformatf("stall_r2_pds %0d", stall_r2_pds));

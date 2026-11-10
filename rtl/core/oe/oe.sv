@@ -1,10 +1,10 @@
 // ================================================================================
 //  Out-of-order Engine: D to IQ and ROB, between Fetch Engine and Execute
 // ================================================================================
-//  D               RD1/RD2            PreDS                DS            IS/PR
-//  predecoder ─┬─► rename  ───────┬─► predisp ─────────┬─► dispatch ─┬─► issue_queue
-//              └─► decoder ───────┴─► predisp_payload ─┘             ├─► payload
-//                                                                    └─► rob
+//  D               RD1/RD2      PreDS                DS            IS/PR
+//  predecoder ─┬─► rename ──┬─► predisp ─────────┬─► dispatch ─┬─► issue_queue
+//              └─► decoder ─┴─► predisp_payload ─┘             ├─► issue_payload
+//                                                              └─► reorder_buffer
 // ================================================================================
 `include "uop_defs.svh"
 
@@ -20,11 +20,11 @@ module oe #(
   input  logic [30:0]         f5_d_pc,
   input  logic [MW-1:0]       f5_d_meta,
   output logic                stall_d_r1,
-  // ---- branch resolve (EX) -----------------------------------------------------
-  input  logic                ex_resolveValid,
-  input  logic [1:0]          ex_resolveSnapshot,
-  input  logic                ex_resolveMispredict,
-  input  logic [3:0]          ex_resolveRobIndex,
+  // ---- branch resolve (EX0) ----------------------------------------------------
+  input  logic                ex0_resolveValid,
+  input  logic [1:0]          ex0_resolveSnapshot,
+  input  logic                ex0_resolveMispredict,
+  input  logic [3:0]          ex0_resolveRobIndex,
   // ---- completion (s+8) --------------------------------------------------------
   input  logic                wb_valid,
   input  logic [3:0]          wb_robIndex,
@@ -90,7 +90,7 @@ module oe #(
 );
 
   // ---- kill and commit ---------------------------------------------------------
-  logic flush_d_r1;  assign flush_d_r1  = cm_flush | (ex_resolveValid & ex_resolveMispredict);
+  logic flush_d_r1;  assign flush_d_r1  = cm_flush | (ex0_resolveValid & ex0_resolveMispredict);
   logic cm_commitRd; assign cm_commitRd = cm_valid & cm_rdWriteEnable & !cm_exception;
 
   // ---- D: predecoder -----------------------------------------------------------
@@ -129,7 +129,7 @@ module oe #(
     .d_r1_rs1Use,     .d_r1_rs2Use,   .d_r1_rdWriteEnable,
     .d_r1_isBranch,   .d_r1_isJalr,
     .stall_r2_pds,    .stall_r1_r2,   .stall_d_r1,     .rd2_skidValid,
-    .ex_resolveValid, .ex_resolveSnapshot, .ex_resolveMispredict,
+    .ex0_resolveValid, .ex0_resolveSnapshot, .ex0_resolveMispredict,
     .cm_commitRd,     .cm_rdIndex,    .cm_rdTag,       .cm_rdOldTag,   .cm_flush,
     .r2_pds_valid,    .r2_pds_rs1Tag, .r2_pds_rs2Tag,  .r2_pds_rdTag,  .r2_pds_rdOldTag,
     .r2_pds_rs1Use,   .r2_pds_rs2Use, .r2_pds_rdIndex, .r2_pds_rdWriteEnable,
@@ -201,7 +201,7 @@ module oe #(
     .r2_pds_branchMask, .r2_pds_snapshot,
     .d2_pds_latency,
     .stall_pds_ds,      .stall_r2_pds, .ds_iqFire,
-    .ex_resolveValid,   .ex_resolveSnapshot, .ex_resolveMispredict, .cm_flush,
+    .ex0_resolveValid,  .ex0_resolveSnapshot, .ex0_resolveMispredict, .cm_flush,
     .iq_tailSlot,       .iq_visible,    .iq_grantPrevious, .iq_wakeL3,    .iq_wakeL4, .iq_wakeL5,
     .pds_ds_valid,      .pds_ds_rs1Tag, .pds_ds_rs2Tag,    .pds_ds_rdTag, .pds_ds_rdOldTag,
     .pds_ds_rdIndex,    .pds_ds_rdWriteEnable,
@@ -275,16 +275,16 @@ module oe #(
     .sd_steal           (1'b0),
     .sd_divWake         (1'b0),
     .sd_missWake        (1'b0),
-    .ex_resolveValid,  .ex_resolveSnapshot,  .ex_resolveMispredict, .cm_flush,
+    .ex0_resolveValid, .ex0_resolveSnapshot, .ex0_resolveMispredict, .cm_flush,
     .iq_tailSlot,      .iq_visible,
     .iq_grantPrevious, .iq_wakeL3,           .iq_wakeL4,            .iq_wakeL5,
     .is_pr_grant,      .iq_grantBranchMask
   );
 
-  // ---- IS/PR: payload ----------------------------------------------------------
+  // ---- IS/PR: issue_payload ----------------------------------------------------
   logic [3:0] ds_robIndex;
 
-  payload #(.MW(MW)) u_payload (
+  issue_payload #(.MW(MW)) u_issuePayload (
     .clk,
     .ds_iqFire,      .iq_tailSlot,    .ds_robIndex,
     .pds_ds_rs1Tag,  .pds_ds_rs2Tag,  .pds_ds_rdTag,  .pds_ds_rdWriteEnable, .pds_ds_snapshot,
@@ -308,8 +308,8 @@ module oe #(
     .pr_rf_divSigned,   .pr_rf_divRemainder,   .pr_rf_func3,   .pr_rf_immediate
   );
 
-  // ---- DS/CM: rob --------------------------------------------------------------
-  rob u_rob (
+  // ---- DS/CM: reorder_buffer ---------------------------------------------------
+  reorder_buffer u_reorderBuffer (
     .clk, .resetn,
     .ds_fire,
     .pds_ds_rdIndex,    .pds_ds_rdTag, .pds_ds_rdOldTag, .pds_ds_rdWriteEnable,
@@ -319,7 +319,7 @@ module oe #(
     .wb_valid,          .wb_robIndex,  .wb_exception,    .wb_refetch,    .wb_badAddress,
     .lq_violationValid    (1'b0),
     .lq_violationRobIndex (4'd0),
-    .ex_resolveValid,   .ex_resolveMispredict,           .ex_resolveRobIndex,
+    .ex0_resolveValid,  .ex0_resolveMispredict,          .ex0_resolveRobIndex,
     .cm_valid,          .cm_exception, .cm_refetch,      .cm_flush,
     .cm_rdIndex,        .cm_rdTag,     .cm_rdOldTag,     .cm_rdWriteEnable,
     .cm_pc,             .cm_rvc,       .cm_system,       .cm_illegal,    .cm_serialising,

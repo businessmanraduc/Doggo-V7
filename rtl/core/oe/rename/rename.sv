@@ -41,10 +41,10 @@ module rename (
   output logic        stall_r1_r2,          // to the decoder
   output logic        rd2_skidValid,        // to the decoder
   output logic        stall_d_r1,           // to the predecoder
-  // ---- branch resolve (EX) -----------------------------------------------------
-  input  logic        ex_resolveValid,
-  input  logic [1:0]  ex_resolveSnapshot,
-  input  logic        ex_resolveMispredict,
+  // ---- branch resolve (EX0) ----------------------------------------------------
+  input  logic        ex0_resolveValid,
+  input  logic [1:0]  ex0_resolveSnapshot,
+  input  logic        ex0_resolveMispredict,
   // ---- commit (ROB head) -------------------------------------------------------
   input  logic        cm_commitRd,
   input  logic [4:0]  cm_rdIndex,
@@ -84,10 +84,10 @@ module rename (
   logic [1:0] rc_index;
 
   // ---- recovery ----------------------------------------------------------------
-  logic       ex_mispredict;   assign ex_mispredict   = ex_resolveValid & ex_resolveMispredict;
-  logic       rn_kill;         assign rn_kill         = ex_mispredict | cm_flush;
-  logic [3:0] ex_resolveClear; assign ex_resolveClear =
-    ex_resolveValid ? 4'(1) << ex_resolveSnapshot : 4'b0;
+  logic       ex0_mispredict;   assign ex0_mispredict  = ex0_resolveValid & ex0_resolveMispredict;
+  logic       rn_kill;         assign rn_kill         = ex0_mispredict | cm_flush;
+  logic [3:0] ex0_resolveClear; assign ex0_resolveClear =
+    ex0_resolveValid ? 4'(1) << ex0_resolveSnapshot : 4'b0;
 
   // ---- R1: stall, go, pop, snapshot allocation ---------------------------------
   logic r1_needSnapshot, r1_block, r1_go, r1_write, r1_take;
@@ -104,7 +104,7 @@ module rename (
   assign r1_write        = r1_go & d_r1_rdWriteEnable;
   assign r1_take         = r1_go & r1_needSnapshot;
   assign r1_rdTag        = fl_headTag;
-  assign r1_mask         = sn_live & ~ex_resolveClear;
+  assign r1_mask         = sn_live & ~ex0_resolveClear;
 
   logic        r1_mapBlock;
   logic [31:0] r1_mapWrite;
@@ -125,9 +125,9 @@ module rename (
       rc_mispredict <= 1'b0;
     end else begin
       rc_flush      <= cm_flush;
-      rc_mispredict <= ex_mispredict & !cm_flush;
+      rc_mispredict <= ex0_mispredict & !cm_flush;
     end
-    rc_index <= ex_resolveSnapshot;
+    rc_index <= ex0_resolveSnapshot;
   end
 
   // ---- map, retirement map, snapshots ------------------------------------------
@@ -166,7 +166,7 @@ module rename (
     end
     sn_takeIndex <= r1_freeSnapshot;
     for (int k = 0; k < 4; k++)
-      sn_mask[k]                <= sn_mask[k] & ~ex_resolveClear;
+      sn_mask[k]                <= sn_mask[k] & ~ex0_resolveClear;
     if (r1_take)
       sn_mask[r1_freeSnapshot]  <= r1_mask;
     if (sn_take) begin
@@ -240,7 +240,7 @@ module rename (
       r1_r2_snapshot      <= r1_freeSnapshot;
     end
 
-    r1_r2_branchMask <= (stall_r1_r2 ? r1_r2_branchMask : r1_mask) & ~ex_resolveClear;
+    r1_r2_branchMask <= (stall_r1_r2 ? r1_r2_branchMask : r1_mask) & ~ex0_resolveClear;
   end
 
   // ---- R2: map read 2 ----------------------------------------------------------
@@ -273,7 +273,7 @@ module rename (
       r2_skidSnapshot      <= r1_r2_snapshot;
     end
 
-    r2_skidBranchMask <= (!rd2_skidValid ? r1_r2_branchMask : r2_skidBranchMask) & ~ex_resolveClear;
+    r2_skidBranchMask <= (!rd2_skidValid ? r1_r2_branchMask : r2_skidBranchMask) & ~ex0_resolveClear;
   end
 
   // ---- Rename-2/Dispatch-1 register --------------------------------------------
@@ -297,7 +297,7 @@ module rename (
       stall_r2_pds  ? r2_pds_branchMask :
       rd2_skidValid ? r2_skidBranchMask :
       r1_r2_branchMask
-    ) & ~ex_resolveClear;
+    ) & ~ex0_resolveClear;
   end
 
 endmodule

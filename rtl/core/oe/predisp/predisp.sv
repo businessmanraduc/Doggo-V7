@@ -40,10 +40,10 @@ module predisp (
   input  logic                 stall_pds_ds,        // DS cannot take the register
   output logic                 stall_r2_pds,        // to rename and the decoder
   input  logic                 ds_iqFire,           // DS uop written into IQ tail
-  // ---- branch resolve (EX), commit flush ---------------------------------------
-  input  logic                 ex_resolveValid,
-  input  logic [1:0]           ex_resolveSnapshot,
-  input  logic                 ex_resolveMispredict,
+  // ---- branch resolve (EX0), commit flush --------------------------------------
+  input  logic                 ex0_resolveValid,
+  input  logic [1:0]           ex0_resolveSnapshot,
+  input  logic                 ex0_resolveMispredict,
   input  logic                 cm_flush,
   // ---- IQ ----------------------------------------------------------------------
   input  logic [7:0]           iq_tailSlot,         // one-hot
@@ -74,9 +74,9 @@ module predisp (
 );
 
   // ---- kill & resolve ----------------------------------------------------------
-  logic ex_kill; assign ex_kill = (ex_resolveValid & ex_resolveMispredict) | cm_flush;
-  logic [3:0] ex_resolveClear; assign ex_resolveClear =
-    ex_resolveValid ? 4'(1) << ex_resolveSnapshot : 4'b0;
+  logic ex0_kill; assign ex0_kill = (ex0_resolveValid & ex0_resolveMispredict) | cm_flush;
+  logic [3:0] ex0_resolveClear; assign ex0_resolveClear =
+    ex0_resolveValid ? 4'(1) << ex0_resolveSnapshot : 4'b0;
 
   // ---- stall -------------------------------------------------------------------
   assign stall_r2_pds = stall_pds_ds & r2_pds_valid;
@@ -94,7 +94,7 @@ module predisp (
   & {4{r2_pds_rdWriteEnable}};
 
   always_ff @(posedge clk) begin
-    if (!resetn || ex_kill) pds_dsProducer <= 1'b0;
+    if (!resetn || ex0_kill) pds_dsProducer <= 1'b0;
     else if (!stall_pds_ds) pds_dsProducer <= r2_pds_valid & (pds_r2Latency != 4'b0);
     if (!stall_pds_ds)      pds_dsLatency  <= pds_r2Latency;
   end
@@ -157,7 +157,7 @@ module predisp (
 
   // ---- Dispatch-1/Dispatch inter-stage pipeline regsiter -----------------------
   always_ff @(posedge clk) begin
-    if (!resetn || ex_kill) pds_ds_valid <= 1'b0;
+    if (!resetn || ex0_kill) pds_ds_valid <= 1'b0;
     else if (!stall_pds_ds) pds_ds_valid <= r2_pds_valid;
   end
 
@@ -178,7 +178,7 @@ module predisp (
       pds_rs1Slot          <= pds_slot1;
       pds_rs2Slot          <= pds_slot2;
     end
-    pds_ds_branchMask <= (stall_pds_ds ? pds_ds_branchMask : r2_pds_branchMask) & ~ex_resolveClear;
+    pds_ds_branchMask <= (stall_pds_ds ? pds_ds_branchMask : r2_pds_branchMask) & ~ex0_resolveClear;
   end
 
   // ---- wait flags --------------------------------------------------------------

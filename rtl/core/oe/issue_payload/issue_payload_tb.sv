@@ -1,5 +1,5 @@
 // ================================================================================
-//  payload_tb -- payload RAM with named fields under the IQ slot contract
+//  issue_payload_tb -- payload RAM with named fields under the IQ slot contract
 // ================================================================================
 //  The bench plays dispatch (circular one-hot tail, a slot reused from the
 //  cycle after its PR read) and the IQ grant (a dispatched, ungranted slot at
@@ -13,7 +13,7 @@
 
 `include "uop_defs.svh"
 
-module payload_tb;
+module issue_payload_tb;
 
   localparam int MW = 3;
 
@@ -63,7 +63,7 @@ module payload_tb;
 
   always #5 clk = ~clk;
 
-  payload #(.MW(MW)) u_dut (
+  issue_payload #(.MW(MW)) u_dut (
     .clk,
     .ds_iqFire,
     .iq_tailSlot,
@@ -281,8 +281,8 @@ module payload_tb;
       $display("ERROR coverage hole");
       errors++;
     end
-    if (errors == 0) $display("PASS  payload (%0d reads)", checks);
-    else             $fatal(1, "FAIL  payload (%0d errors)", errors);
+    if (errors == 0) $display("PASS  issue_payload (%0d reads)", checks);
+    else             $fatal(1, "FAIL  issue_payload (%0d errors)", errors);
     $finish;
   end
 

@@ -52,10 +52,10 @@ module issue_queue #(
   input  logic                 sd_steal,
   input  logic                 sd_divWake,
   input  logic                 sd_missWake,
-  // ---- branch resolve (EX), commit flush ---------------------------------------
-  input  logic                 ex_resolveValid,
-  input  logic [1:0]           ex_resolveSnapshot,
-  input  logic                 ex_resolveMispredict,
+  // ---- branch resolve (EX0), commit flush --------------------------------------
+  input  logic                 ex0_resolveValid,
+  input  logic [1:0]           ex0_resolveSnapshot,
+  input  logic                 ex0_resolveMispredict,
   input  logic                 cm_flush,
   // ---- to predisp --------------------------------------------------------------
   output logic [N-1:0]         iq_tailSlot,           // one-hot
@@ -81,11 +81,11 @@ module issue_queue #(
   logic         iq_fire;
   logic [3:0]   iq_branchMask [N];
 
-  assign iq_mispredict   = ex_resolveValid & ex_resolveMispredict;
-  assign iq_resolveClear = ex_resolveValid ? 4'(1) << ex_resolveSnapshot : 4'b0;
+  assign iq_mispredict   = ex0_resolveValid & ex0_resolveMispredict;
+  assign iq_resolveClear = ex0_resolveValid ? 4'(1) << ex0_resolveSnapshot : 4'b0;
   for (genvar k = 0; k < N; k++) begin : g_kill
     assign iq_kill[k] = cm_flush | (iq_mispredict & (
-      iq_branchMask[k][ex_resolveSnapshot] | iq_tailFree[k]
+      iq_branchMask[k][ex0_resolveSnapshot] | iq_tailFree[k]
     ));
   end
 

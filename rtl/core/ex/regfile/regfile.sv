@@ -9,12 +9,12 @@
 //   - ALL 64 entries start at 0 using the cells' INITVAL.
 //   - A write in WB is handled for a read on the same register by the next stage.
 // ================================================================================
-module rf (
+module regfile (
   input  logic        clk,
   // ---- WB: write port ----------------------------------------------------------
-  input  logic        ex7_wb_producer,
-  input  logic [5:0]  ex7_wb_rdTag,
-  input  logic [31:0] ex7_wb_result,
+  input  logic        ex3_wb_producer,
+  input  logic [5:0]  ex3_wb_rdTag,
+  input  logic [31:0] ex3_wb_result,
   // ---- RF: read ports ----------------------------------------------------------
   input  logic [5:0]  pr_rf_rs1Tag,
   input  logic [5:0]  pr_rf_rs2Tag,
@@ -26,7 +26,7 @@ module rf (
   initial for (int k = 0; k < 64; k++) rf_regs[k] = '0;
 
   always_ff @(posedge clk) begin
-    if (ex7_wb_producer) rf_regs[ex7_wb_rdTag] <= ex7_wb_result;
+    if (ex3_wb_producer) rf_regs[ex3_wb_rdTag] <= ex3_wb_result;
   end
 
   assign rf_rs1Data = rf_regs[pr_rf_rs1Tag];

@@ -1,12 +1,12 @@
 // ================================================================================
-//  rob_ring: ring wrapper, every DUT port register-bounded
+//  reorder_buffer_ring: ring wrapper, every DUT port register-bounded
 // ================================================================================
 //  ds_fire closes the core loop: valid & iqReady (ring flops) & rob_dispatchReady
 //  & !cm_flush & !mispredict.
 // ================================================================================
 `include "uop_defs.svh"
 
-module rob_ring (
+module reorder_buffer_ring (
   input  logic clk,
   input  logic perturb,
   output logic q
@@ -34,7 +34,7 @@ module rob_ring (
 
   assign ds_fire = src[60] & src[61] & rob_dispatchReady & !cm_flush & !(src[80] & src[81]);
 
-  rob u_dut (
+  reorder_buffer u_dut (
     .clk,
     .resetn               (src[62] | src[63]),
     .ds_fire,
@@ -51,16 +51,16 @@ module rob_ring (
     .rob_dispatchReady,
     .rob_empty,
     .ds_robIndex,
-    .wb_valid             (src[66]),
-    .wb_robIndex          (src[70:67]),
-    .wb_exception         (src[71]),
-    .wb_refetch           (src[72]),
-    .wb_badAddress        (src[129:98]),
-    .lq_violationValid    (src[73]),
-    .lq_violationRobIndex (src[77:74]),
-    .ex_resolveValid      (src[80]),
-    .ex_resolveMispredict (src[81]),
-    .ex_resolveRobIndex   (src[85:82]),
+    .wb_valid              (src[66]),
+    .wb_robIndex           (src[70:67]),
+    .wb_exception          (src[71]),
+    .wb_refetch            (src[72]),
+    .wb_badAddress         (src[129:98]),
+    .lq_violationValid     (src[73]),
+    .lq_violationRobIndex  (src[77:74]),
+    .ex0_resolveValid      (src[80]),
+    .ex0_resolveMispredict (src[81]),
+    .ex0_resolveRobIndex   (src[85:82]),
     .cm_valid, .cm_exception, .cm_refetch, .cm_flush,
     .cm_rdIndex, .cm_rdTag, .cm_rdOldTag, .cm_rdWriteEnable, .cm_pc, .cm_rvc,
     .cm_system, .cm_illegal, .cm_serialising, .cm_isLoad, .cm_isStore,

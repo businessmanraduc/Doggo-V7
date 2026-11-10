@@ -16,7 +16,7 @@
 // ================================================================================
 `include "uop_defs.svh"
 
-module payload #(
+module issue_payload #(
   parameter int MW = 1
 ) (
   input  logic                clk,

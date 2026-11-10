@@ -41,10 +41,10 @@ module oe_tb;
   logic [30:0]          f5_d_pc = '0;
   logic [MW-1:0]        f5_d_meta = '0;
   logic                 stall_d_r1;
-  logic                 ex_resolveValid = 1'b0;
-  logic [1:0]           ex_resolveSnapshot = '0;
-  logic                 ex_resolveMispredict = 1'b0;
-  logic [3:0]           ex_resolveRobIndex = '0;
+  logic                 ex0_resolveValid = 1'b0;
+  logic [1:0]           ex0_resolveSnapshot = '0;
+  logic                 ex0_resolveMispredict = 1'b0;
+  logic [3:0]           ex0_resolveRobIndex = '0;
   logic                 wb_valid = 1'b0;
   logic [3:0]           wb_robIndex = '0;
   logic                 wb_exception = 1'b0;
@@ -396,9 +396,9 @@ module oe_tb;
     t++;
     kill = 0;
     if (fePresenting && f5_d_valid && !fePresStall) fePresenting = 0;   // taken at this edge
-    ex_resolveValid      = 1'b0;
-    ex_resolveMispredict = 1'b0;
-    wb_valid             = 1'b0;
+    ex0_resolveValid      = 1'b0;
+    ex0_resolveMispredict = 1'b0;
+    wb_valid              = 1'b0;
 
     // ---- commit ----------------------------------------------------------------
     if (cm_valid) begin
@@ -501,15 +501,15 @@ module oe_tb;
     prSelect  = t - 1;
     if (is_pr_grant != 0 && !$onehot(is_pr_grant)) fail("chk_grant", $sformatf("%b", is_pr_grant));
 
-    // ---- EX: resolve at s+4 ----------------------------------------------------
+    // ---- EX0: resolve at s+4 ---------------------------------------------------
     while (resolveQ.size() > 0 && resolveQ[0].s + 4 <= t) begin
       ev_t e = resolveQ.pop_front();
       if (e.s + 4 < t) fail("chk_internal", "late resolve");
       if (rec.exists(e.id) && !rec[e.id].dead && !kill) begin
-        ex_resolveValid      = 1'b1;
-        ex_resolveSnapshot   = e.snapshot;
-        ex_resolveMispredict = e.mispredict;
-        ex_resolveRobIndex   = e.robIndex;
+        ex0_resolveValid      = 1'b1;
+        ex0_resolveSnapshot   = e.snapshot;
+        ex0_resolveMispredict = e.mispredict;
+        ex0_resolveRobIndex   = e.robIndex;
         cov["resolve"]++;
         if (e.mispredict) begin
           cov[rec[e.id].onPath ? "mispredictPath" : "mispredictWrongPath"]++;
@@ -627,7 +627,7 @@ module oe_tb;
     end
     fePc = 32'h8000_0000; feOnPath = 1; fePresenting = 0; feStop = 0; fePresStall = 0;
     prPending = 0; expR2 = 0; expPds = 0;
-    f5_d_valid = 0; ex_resolveValid = 0; wb_valid = 0;
+    f5_d_valid = 0; ex0_resolveValid = 0; wb_valid = 0;
     resetn = 0;
     repeat (3) @(posedge clk);
     #1 resetn = 1;

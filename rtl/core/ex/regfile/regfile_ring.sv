@@ -1,9 +1,9 @@
 // ================================================================================
-//  rf_ring -- ring wrapper: every DUT port register-bounded
+//  regfile_ring -- ring wrapper: every DUT port register-bounded
 //  ports are the ring convention: clk, perturb (in), q (out)
 // ================================================================================
 
-module rf_ring (
+module regfile_ring (
   input  logic clk,
   input  logic perturb,
   output logic q
@@ -16,11 +16,11 @@ module rf_ring (
 
   logic [31:0] rf_rs1Data, rf_rs2Data;
 
-  rf u_dut (
+  regfile u_dut (
     .clk,
-    .ex7_wb_producer (s1[0]),
-    .ex7_wb_rdTag    (s1[6:1]),
-    .ex7_wb_result   (s0),
+    .ex3_wb_producer (s1[0]),
+    .ex3_wb_rdTag    (s1[6:1]),
+    .ex3_wb_result   (s0),
     .pr_rf_rs1Tag    (s1[12:7]),
     .pr_rf_rs2Tag    (s1[18:13]),
     .rf_rs1Data, .rf_rs2Data

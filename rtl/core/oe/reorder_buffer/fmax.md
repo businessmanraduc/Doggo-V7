@@ -1,4 +1,4 @@
-# rob solo Fmax
+# reorder_buffer solo Fmax
 
 ring-of-regs, nextpnr --85k CABGA381, tw=100, 20 seeds
 tools: Yosys 0.62, nextpnr-35f1433
@@ -13,10 +13,10 @@ tools: Yosys 0.62, nextpnr-35f1433
 |---|---|---|
 | 1 | 148.72 | u_dut.cm_flush       -> u_dut.rb_refetch |
 | 2 | 157.95 | u_s1.r               -> u_dut.rb_count |
-| 3 | 163.13 | u_dut.ex_resolveMispredict -> u_dut.rb_done |
+| 3 | 163.13 | u_dut.ex0_resolveMispredict -> u_dut.rb_done |
 | 4 | 166.81 | u_dut.cm_flush       -> u_dut.rb_refetch |
-| 5 | 178.00 | u_dut.ex_resolveValid -> u_dut.rb_count |
-| 6 | 172.53 | u_dut.ex_resolveValid -> u_dut.rb_refetch |
+| 5 | 178.00 | u_dut.ex0_resolveValid -> u_dut.rb_count |
+| 6 | 172.53 | u_dut.ex0_resolveValid -> u_dut.rb_refetch |
 | 7 | 172.65 | u_dut.cm_flush       -> u_dut.rb_refetch |
 | 8 | 162.84 | u_dut.cm_flush       -> u_dut.rb_count |
 | 9 | 166.53 | u_dut.cm_flush       -> u_dut.rb_refetch |
@@ -29,5 +29,5 @@ tools: Yosys 0.62, nextpnr-35f1433
 | 16 | 140.37 | u_dut.cm_flush       -> u_dut.rb_refetch |
 | 17 | 157.16 | u_dut.cm_flush       -> u_dut.rb_refetch |
 | 18 | 165.78 | u_s1.r               -> u_dut.rb_done |
-| 19 | 166.83 | u_dut.ex_resolveValid -> u_dut.rb_refetch |
-| 20 | 150.99 | u_dut.ex_resolveValid -> u_dut.rb_done |
+| 19 | 166.83 | u_dut.ex0_resolveValid -> u_dut.rb_refetch |
+| 20 | 150.99 | u_dut.ex0_resolveValid -> u_dut.rb_done |

@@ -30,9 +30,9 @@ module rename_tb;
   logic       d_r1_isBranch = 1'b0, d_r1_isJalr = 1'b0;
   logic       stall_r2_pds = 1'b0;
   logic       stall_r1_r2, stall_d_r1, rd2_skidValid;
-  logic       ex_resolveValid = 1'b0;
-  logic [1:0] ex_resolveSnapshot = '0;
-  logic       ex_resolveMispredict = 1'b0;
+  logic       ex0_resolveValid = 1'b0;
+  logic [1:0] ex0_resolveSnapshot = '0;
+  logic       ex0_resolveMispredict = 1'b0;
   logic       cm_commitRd = 1'b0;
   logic [4:0] cm_rdIndex = '0;
   logic [5:0] cm_rdTag = '0, cm_rdOldTag = '0;
@@ -147,10 +147,10 @@ module rename_tb;
       fh   = fcN;
       live = '0;
     end else if (c_mis) begin
-      rmap = smap[ex_resolveSnapshot];
-      fh   = shead[ex_resolveSnapshot];
+      rmap = smap[ex0_resolveSnapshot];
+      fh   = shead[ex0_resolveSnapshot];
       for (int i = 0; i < 4; i++)
-        if (live[i] && sage[i] >= sage[ex_resolveSnapshot]) live[i] = 1'b0;
+        if (live[i] && sage[i] >= sage[ex0_resolveSnapshot]) live[i] = 1'b0;
     end else begin
       if (c_write) begin
         rmap[c_exp.rdIndex] = c_exp.rdTag;
@@ -193,7 +193,7 @@ module rename_tb;
     // ---- bench ROB -------------------------------------------------------------
     if (c_commitId >= 0 && rob.size() != 0 && rob[0].id == c_commitId) void'(rob.pop_front());
     if (c_flush) rob.delete();
-    if (ex_resolveValid && !c_flush) begin
+    if (ex0_resolveValid && !c_flush) begin
       k = -1;
       foreach (rob[i]) if (rob[i].id == c_resolveId) k = i;
       if (k >= 0) begin
@@ -250,15 +250,15 @@ module rename_tb;
     stall_r2_pds = pct(pStall) || rob.size() >= robCap;
 
     // resolve: a random unresolved branch in the ROB
-    ex_resolveValid = 1'b0;
-    ex_resolveMispredict = 1'b0;
+    ex0_resolveValid = 1'b0;
+    ex0_resolveMispredict = 1'b0;
     c_resolveId = -1;
     foreach (rob[i]) if (rob[i].isBr && !rob[i].resolved) cand.push_back(i);
     if (cand.size() != 0 && pct(pResolve)) begin
       pick = cand[$urandom_range(cand.size() - 1)];
-      ex_resolveValid      = 1'b1;
-      ex_resolveSnapshot   = rob[pick].snap;
-      ex_resolveMispredict = pct(pMis);
+      ex0_resolveValid     = 1'b1;
+      ex0_resolveSnapshot  = rob[pick].snap;
+      ex0_resolveMispredict = pct(pMis);
       c_resolveId          = rob[pick].id;
     end
 
@@ -298,8 +298,8 @@ module rename_tb;
     bit inUse [64];
     bit [3:0] unres;
 
-    c_clear  = ex_resolveValid ? 4'(1) << ex_resolveSnapshot : 4'b0;
-    c_mis    = ex_resolveValid & ex_resolveMispredict;
+    c_clear  = ex0_resolveValid ? 4'(1) << ex0_resolveSnapshot : 4'b0;
+    c_mis    = ex0_resolveValid & ex0_resolveMispredict;
     c_flush  = cm_flush;
     c_kill   = c_mis | c_flush;
     c_stall1 = es.valid & e1.valid;
@@ -396,7 +396,7 @@ module rename_tb;
     resetn  = !rst;
     inReset = rst;
     if (rst) begin
-      d_r1_valid = 1'b0; ex_resolveValid = 1'b0; cm_commitRd = 1'b0; cm_flush = 1'b0;
+      d_r1_valid = 1'b0; ex0_resolveValid = 1'b0; cm_commitRd = 1'b0; cm_flush = 1'b0;
       stall_r2_pds = 1'b0; c_commitId = -1; c_resolveId = -1;
       prevKill = 1'b0; prevStallD = 1'b0;
     end else begin

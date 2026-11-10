@@ -1,5 +1,5 @@
 // ================================================================================
-//  rob_tb: reorder buffer against a cycle-exact model
+//  reorder_buffer_tb: reorder buffer against a cycle-exact model
 // ================================================================================
 //  The bench plays dispatch (fires when ready, also in kill cycles, where the
 //  ROB must drop it; class / system / illegal chosen to make the entry pending,
@@ -16,7 +16,7 @@
 
 `include "uop_defs.svh"
 
-module rob_tb;
+module reorder_buffer_tb;
 
   localparam int N  = 16;
   localparam int PW = 60;
@@ -31,8 +31,8 @@ module rob_tb;
   logic [31:0]   wb_badAddress = '0, cm_badAddress;
   logic          lq_violationValid = 1'b0;
   logic [3:0]    lq_violationRobIndex = '0;
-  logic          ex_resolveValid = 1'b0, ex_resolveMispredict = 1'b0;
-  logic [3:0]    ex_resolveRobIndex = '0;
+  logic          ex0_resolveValid = 1'b0, ex0_resolveMispredict = 1'b0;
+  logic [3:0]    ex0_resolveRobIndex = '0;
   logic          cm_valid, cm_exception, cm_refetch, cm_flush;
   logic [PW-1:0] cm_payload;
 
@@ -58,7 +58,7 @@ module rob_tb;
     ds_class[CLASS_STORE]  = ds_payload[0];
   end
 
-  rob u_dut (
+  reorder_buffer u_dut (
     .clk, .resetn,
     .ds_fire,
     .pds_ds_rdIndex       (ds_payload[59:55]),
@@ -74,7 +74,7 @@ module rob_tb;
     .rob_dispatchReady, .rob_empty, .ds_robIndex,
     .wb_valid, .wb_robIndex, .wb_exception, .wb_refetch, .wb_badAddress,
     .lq_violationValid, .lq_violationRobIndex,
-    .ex_resolveValid, .ex_resolveMispredict, .ex_resolveRobIndex,
+    .ex0_resolveValid, .ex0_resolveMispredict, .ex0_resolveRobIndex,
     .cm_valid, .cm_exception, .cm_refetch, .cm_flush,
     .cm_rdIndex, .cm_rdTag, .cm_rdOldTag, .cm_rdWriteEnable, .cm_pc, .cm_rvc,
     .cm_system, .cm_illegal, .cm_serialising, .cm_isLoad, .cm_isStore,
@@ -175,25 +175,25 @@ module rob_tb;
     if (count == N) cov["full"]++;
 
     // ---- resolve: mispredict on a live pending entry ---------------------------
-    ex_resolveValid = 1'b0;
-    ex_resolveMispredict = 1'b0;
+    ex0_resolveValid = 1'b0;
+    ex0_resolveMispredict = 1'b0;
     mis = 1'b0;
     if (!flushReg && $urandom_range(999) < pMis) begin
       for (int j = 0; j < N; j++) if (live[j] && !done[j]) cand.push_back(j);
       if (cand.size() > 0) begin
         idx = cand[$urandom_range(cand.size() - 1)];
         mis = 1'b1;
-        ex_resolveValid = 1'b1;
-        ex_resolveMispredict = 1'b1;
-        ex_resolveRobIndex = 4'(idx);
+        ex0_resolveValid = 1'b1;
+        ex0_resolveMispredict = 1'b1;
+        ex0_resolveRobIndex = 4'(idx);
         if (commit) cov["misCommit"]++;
         if (count == N) cov["misFull"]++;
         if ((idx + 1) % N == head) cov["misToFull"]++;
       end
       cand.delete();
     end else if ($urandom_range(9) == 0) begin
-      ex_resolveValid = 1'b1;                    // correct prediction: no effect
-      ex_resolveRobIndex = 4'($urandom());
+      ex0_resolveValid = 1'b1;                    // correct prediction: no effect
+      ex0_resolveRobIndex = 4'($urandom());
     end
     kill = flushReg || mis;
 
@@ -312,8 +312,8 @@ module rob_tb;
     foreach (cov[k]) $display("  cov %-14s %0d", k, cov[k]);
     foreach (cov[k]) if (cov[k] == 0) begin $display("ERROR coverage hole %s", k); errors++; end
     if (cov.size() < 14) begin $display("ERROR coverage list short (%0d)", cov.size()); errors++; end
-    if (errors == 0) $display("PASS  rob (%0d cycles)", checks);
-    else             $fatal(1, "FAIL  rob (%0d errors)", errors);
+    if (errors == 0) $display("PASS  reorder_buffer (%0d cycles)", checks);
+    else             $fatal(1, "FAIL  reorder_buffer (%0d errors)", errors);
     $finish;
   end
 
