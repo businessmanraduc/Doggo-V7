@@ -6,7 +6,8 @@
 //  done, trapping or refetching: mret and fence.i),
 //  the completion port (one per live, pending entry, killed ones filtered),
 //  branch resolve (mispredict on a live pending entry) and LQ marks (live,
-//  not head). Checks:
+//  not head). Resolves, completions and marks also come in flush cycles,
+//  where the flush must win. Checks:
 //   - chk_ready: rob_dispatchReady, rob_empty, ds_robIndex each cycle.
 //   - chk_commit: cm_valid each cycle; payload, exception, refetch, flush on
 //   every commit. An exception hides a refetch mark of the same entry.
@@ -178,7 +179,7 @@ module reorder_buffer_tb;
     ex0_resolveValid = 1'b0;
     ex0_resolveMispredict = 1'b0;
     mis = 1'b0;
-    if (!flushReg && $urandom_range(999) < pMis) begin
+    if ($urandom_range(999) < pMis) begin
       for (int j = 0; j < N; j++) if (live[j] && !done[j]) cand.push_back(j);
       if (cand.size() > 0) begin
         idx = cand[$urandom_range(cand.size() - 1)];
@@ -189,6 +190,7 @@ module reorder_buffer_tb;
         if (commit) cov["misCommit"]++;
         if (count == N) cov["misFull"]++;
         if ((idx + 1) % N == head) cov["misToFull"]++;
+        if (flushReg) cov["misInFlush"]++;
       end
       cand.delete();
     end else if ($urandom_range(9) == 0) begin
@@ -200,7 +202,7 @@ module reorder_buffer_tb;
     // ---- completion: a live pending entry, not killed this cycle ---------------
     wb_valid = 1'b0;
     wbIdx = -1;
-    if (!flushReg && $urandom_range(99) < pWb) begin
+    if ($urandom_range(99) < pWb) begin
       for (int j = 0; j < N; j++)
         if (live[j] && !done[j] && t > bornAt[j] + 1 && !(mis && younger(j, idx))) cand.push_back(j);
       if (cand.size() > 0) begin
@@ -210,6 +212,7 @@ module reorder_buffer_tb;
         wb_exception = $urandom_range(999) < pExc;
         wb_refetch   = $urandom_range(999) < pExc;
         wb_badAddress = $urandom();
+        if (flushReg) cov["wbInFlush"]++;
       end
       cand.delete();
     end
@@ -217,7 +220,7 @@ module reorder_buffer_tb;
     // ---- LQ mark: live, not head, not killed this cycle ------------------------
     lq_violationValid = 1'b0;
     lqIdx = -1;
-    if (!flushReg && $urandom_range(999) < pLq) begin
+    if ($urandom_range(999) < pLq) begin
       for (int j = 0; j < N; j++)
         if (live[j] && j != head && !(mis && younger(j, idx))) cand.push_back(j);
       if (cand.size() > 0) begin
@@ -225,6 +228,7 @@ module reorder_buffer_tb;
         lq_violationValid    = 1'b1;
         lq_violationRobIndex = 4'(lqIdx);
         if (lqIdx == wbIdx) cov["lqWithWb"]++;
+        if (flushReg) cov["lqInFlush"]++;
       end
       cand.delete();
     end
@@ -311,7 +315,7 @@ module reorder_buffer_tb;
     repeat (2) step();
     foreach (cov[k]) $display("  cov %-14s %0d", k, cov[k]);
     foreach (cov[k]) if (cov[k] == 0) begin $display("ERROR coverage hole %s", k); errors++; end
-    if (cov.size() < 14) begin $display("ERROR coverage list short (%0d)", cov.size()); errors++; end
+    if (cov.size() < 17) begin $display("ERROR coverage list short (%0d)", cov.size()); errors++; end
     if (errors == 0) $display("PASS  reorder_buffer (%0d cycles)", checks);
     else             $fatal(1, "FAIL  reorder_buffer (%0d errors)", errors);
     $finish;

@@ -20,8 +20,8 @@
 //   - R2 skid: catches R1/R2 while PreDS stalls; R2/PreDS loads from it first.
 //   - Retirement map: written at commit, copied into the map on a flush.
 //   - Valid/Flush: a flush wins over a mispredict.
-//   - Recovery: from flops only, a cycle after the kill, R1 blocked for
-//   2 cycles after said kill.
+//   - Recovery: a cycle after the kill, from flops and the snapshot LUTRAM at
+//   the registered rc_index, R1 blocked for 2 cycles after said kill.
 // ================================================================================
 module rename (
   input  logic        clk,
@@ -75,7 +75,8 @@ module rename (
   logic       rn_hold;                      // registered: init, recovery
   logic [3:0] sn_live;                      // snapshot busy <=> branch unresolved
   logic       sn_full;                      // &sn_live, registered
-  logic [5:0] sn_map [4][32];
+  logic [191:0] sn_ram [4];                 // LUTRAM: 4 deep x 32 x 6
+  logic [191:0] sn_read;
   logic [5:0] sn_head [4];
   logic [3:0] sn_mask [4];                  // older unresolved branches, cleared on resolve
   logic       sn_take;                      // write a snapshot this cycle
@@ -140,7 +141,7 @@ module rename (
     end else begin
       for (int r = 0; r < 32; r++) begin
         if (r1_mapWrite[r] || rc_flush || rc_mispredict) begin
-          rn_map[r] <= rc_flush ? rn_retireMap[r] : rc_mispredict ? sn_map[rc_index][r] : r1_rdTag;
+          rn_map[r] <= rc_flush ? rn_retireMap[r] : rc_mispredict ? sn_read[6*r +: 6] : r1_rdTag;
         end
       end
       if (cm_commitRd) rn_retireMap[cm_rdIndex] <= cm_rdTag;
@@ -166,15 +167,21 @@ module rename (
     end
     sn_takeIndex <= r1_freeSnapshot;
     for (int k = 0; k < 4; k++)
-      sn_mask[k]                <= sn_mask[k] & ~ex0_resolveClear;
+      sn_mask[k]               <= sn_mask[k] & ~ex0_resolveClear;
     if (r1_take)
-      sn_mask[r1_freeSnapshot]  <= r1_mask;
-    if (sn_take) begin
-      for (int r = 0; r < 32; r++)
-        sn_map[sn_takeIndex][r] <= rn_map[r];
-      sn_head[sn_takeIndex]     <= fl_head;
-    end
+      sn_mask[r1_freeSnapshot] <= r1_mask;
+    if (sn_take)
+      sn_head[sn_takeIndex]    <= fl_head;
   end
+
+  logic [191:0] sn_write;
+  always_comb begin
+    for (int r = 0; r < 32; r++) sn_write[6*r +: 6] = rn_map[r];
+  end
+  always_ff @(posedge clk) begin
+    if (sn_take) sn_ram[sn_takeIndex] <= sn_write;
+  end
+  assign sn_read = sn_ram[rc_index];
 
   // ---- free list ---------------------------------------------------------------
   logic       fl_write;      assign fl_write      = fl_init | cm_commitRd;

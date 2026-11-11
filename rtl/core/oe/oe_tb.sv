@@ -12,7 +12,9 @@
 //   branch taken = bit 5 of H; jalr target = 0x8000_0000 + H[19:1].
 //   - Execute stub: grant seen at s+1, payload at s+2 (s = select cycle);
 //   reads the physical register model by tag, writes rd, resolve at s+4,
-//   completion at s+8. Killed uops are dropped (the respipe's job).
+//   completion at s+8. Killed uops are dropped as the respipe drops them:
+//   one killed in its EX0 cycle still resolves, one killed in its WB cycle
+//   still completes; the kill must win in both.
 //  Checks:
 //   - chk_ready: a source is read no earlier than producer select + latency.
 //   - chk_payload: pc, class, immediate, seq, branch target, rd enable.
@@ -518,16 +520,22 @@ module oe_tb;
           redirectOnPath = rec[e.id].onPath;
           killAfter(e.id);
         end
+      end else if (rec.exists(e.id) && rec[e.id].killAt == t && !ex0_resolveValid) begin
+        ex0_resolveValid      = 1'b1;           // killed in its EX0 cycle
+        ex0_resolveSnapshot   = e.snapshot;
+        ex0_resolveMispredict = e.mispredict;
+        ex0_resolveRobIndex   = e.robIndex;
+        cov[e.mispredict ? "mispredictInKill" : "resolveInKill"]++;
       end else cov["resolveDropped"]++;
     end
 
     // ---- completion at s+8 -----------------------------------------------------
     while (wbQ.size() > 0 && wbQ[0].s + 8 <= t) begin
       ev_t e = wbQ.pop_front();
-      if (rec.exists(e.id) && !rec[e.id].dead) begin
-        wb_valid    = 1'b1;
+      if (rec.exists(e.id) && (!rec[e.id].dead || rec[e.id].killAt == t)) begin
+        wb_valid    = 1'b1;                     // killed in its WB cycle: still completes
         wb_robIndex = e.robIndex;
-        cov["wb"]++;
+        cov[rec[e.id].dead ? "wbInKill" : "wb"]++;
       end else cov["wbDropped"]++;
     end
 
@@ -657,7 +665,8 @@ module oe_tb;
       string need [] = '{"commit", "wb", "resolve", "mispredictPath", "mispredictWrongPath",
         "flushException", "flushRefetch", "stallD", "stallDs", "serialFire", "fireInKill",
         "tightRs1", "tightRs2", "issueL1", "issueL3", "issueL4", "issueL5", "droppedAtRf",
-        "wbDropped", "resolveDropped", "squashR2", "readsTrapTag"};
+        "wbDropped", "resolveDropped", "squashR2", "readsTrapTag", "mispredictInKill",
+        "resolveInKill", "wbInKill"};
       foreach (need[i]) if (!cov.exists(need[i]) || cov[need[i]] < 20)
         fail("coverage", $sformatf("%s = %0d", need[i], cov.exists(need[i]) ? cov[need[i]] : 0));
     end
