@@ -28,9 +28,12 @@ module predecoder_tb;
   logic [30:0]   d_r1_pc;
   logic [MW-1:0] d_r1_meta;
   logic [4:0]    d_r1_rs1Index, d_r1_rs2Index, d_r1_rdIndex;
+  logic [3:0]    d_r1_rdHi;
+  logic [7:0]    d_r1_rdLo;
   logic          d_r1_rs1Use, d_r1_rs2Use, d_r1_rdWriteEnable;
   logic          d_r1_isBranch, d_r1_isJal, d_r1_isJalr, d_r1_isCall, d_r1_isRet;
   logic [30:0]   d_r1_branchTarget, d_r1_seq;
+  logic          d_r1_needSnapshot;
 
   predecoder #(.MW(MW)) u_dut (.*);
 
@@ -251,6 +254,12 @@ module predecoder_tb;
         if (d_r1_rs2Use !== m_ref.rs2Use) fail("chk_rs2Use", $sformatf("rs2Use %0d", d_r1_rs2Use));
         if (m_ref.rdWe && d_r1_rdIndex !== m_ref.rd)
           fail("chk_rd", $sformatf("rd %0d exp %0d", d_r1_rdIndex, m_ref.rd));
+        if (d_r1_rdHi !== (m_ref.rdWe ? 4'(1) << m_ref.rd[4:3] : 4'b0))
+          fail("chk_rdHi", $sformatf("rdHi %b rd %0d we %0d", d_r1_rdHi, m_ref.rd, m_ref.rdWe));
+        if (m_ref.rdWe && d_r1_rdLo !== 8'(1) << m_ref.rd[2:0])
+          fail("chk_rdLo", $sformatf("rdLo %b rd %0d", d_r1_rdLo, m_ref.rd));
+        if (d_r1_needSnapshot !== (m_ref.isBr | m_ref.isJalr))
+          fail("chk_needSnapshot", $sformatf("needSnapshot %0d", d_r1_needSnapshot));
         if (m_ref.rs1Use && d_r1_rs1Index !== m_ref.rs1)
           fail("chk_rs1", $sformatf("rs1 %0d exp %0d", d_r1_rs1Index, m_ref.rs1));
         if (m_ref.rs2Use && d_r1_rs2Index !== m_ref.rs2)

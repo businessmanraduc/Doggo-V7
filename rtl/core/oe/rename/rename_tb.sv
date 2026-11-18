@@ -28,6 +28,9 @@ module rename_tb;
   logic [4:0] d_r1_rs1Index = '0, d_r1_rs2Index = '0, d_r1_rdIndex = '0;
   logic       d_r1_rs1Use = 1'b0, d_r1_rs2Use = 1'b0, d_r1_rdWriteEnable = 1'b0;
   logic       d_r1_isBranch = 1'b0, d_r1_isJalr = 1'b0;
+  logic [3:0] d_r1_rdHi = '0;
+  logic [7:0] d_r1_rdLo = '0;
+  logic       d_r1_needSnapshot = 1'b0;
   logic       stall_r2_pds = 1'b0;
   logic       stall_r1_r2, stall_d_r1, rd2_skidValid;
   logic       ex0_resolveValid = 1'b0;
@@ -245,6 +248,9 @@ module rename_tb;
       if (pct(pBranch))    d_r1_isBranch = 1'b1;
       else if (pct(pJalr)) d_r1_isJalr = 1'b1;
       d_r1_rdWriteEnable = !d_r1_isBranch && pct(75) && d_r1_rdIndex != 0;
+      d_r1_rdHi          = d_r1_rdWriteEnable ? 4'(1) << d_r1_rdIndex[4:3] : 4'b0;
+      d_r1_rdLo          = 8'(1) << d_r1_rdIndex[2:0];
+      d_r1_needSnapshot  = d_r1_isBranch | d_r1_isJalr;
     end
 
     stall_r2_pds = pct(pStall) || rob.size() >= robCap;

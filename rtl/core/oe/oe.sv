@@ -100,19 +100,23 @@ module oe #(
   logic [30:0]    d_r1_pc;
   logic [MW-1:0]  d_r1_meta;
   logic [4:0]     d_r1_rs1Index, d_r1_rs2Index, d_r1_rdIndex;
+  logic [3:0]     d_r1_rdHi;
+  logic [7:0]     d_r1_rdLo;
   logic           d_r1_rs1Use,   d_r1_rs2Use,   d_r1_rdWriteEnable;
   logic           d_r1_isBranch, d_r1_isJal,    d_r1_isJalr, d_r1_isCall, d_r1_isRet;
   logic [30:0]    d_r1_branchTarget, d_r1_seq;
+  logic           d_r1_needSnapshot;
 
   predecoder #(.MW(MW)) u_predecoder (
     .clk, .resetn,
     .f5_d_valid,    .f5_d_instr,    .f5_d_rvc,     .f5_d_pc,     .f5_d_meta,
     .stall_d_r1,    .flush_d_r1,
     .d_r1_valid,    .d_r1_instr,    .d_r1_rvc,     .d_r1_pc,     .d_r1_meta,
-    .d_r1_rs1Index, .d_r1_rs2Index, .d_r1_rdIndex,
+    .d_r1_rs1Index, .d_r1_rs2Index, .d_r1_rdIndex, .d_r1_rdHi,   .d_r1_rdLo,
     .d_r1_rs1Use,   .d_r1_rs2Use,   .d_r1_rdWriteEnable,
     .d_r1_isBranch, .d_r1_isJal,    .d_r1_isJalr,  .d_r1_isCall, .d_r1_isRet,
-    .d_r1_branchTarget, .d_r1_seq
+    .d_r1_branchTarget, .d_r1_seq,
+    .d_r1_needSnapshot
   );
 
   // ---- RD1/RD2: rename ---------------------------------------------------------
@@ -126,8 +130,9 @@ module oe #(
   rename u_rename (
     .clk, .resetn,
     .d_r1_valid,      .d_r1_rs1Index, .d_r1_rs2Index,  .d_r1_rdIndex,
+    .d_r1_rdHi,       .d_r1_rdLo,
     .d_r1_rs1Use,     .d_r1_rs2Use,   .d_r1_rdWriteEnable,
-    .d_r1_isBranch,   .d_r1_isJalr,
+    .d_r1_needSnapshot,
     .stall_r2_pds,    .stall_r1_r2,   .stall_d_r1,     .rd2_skidValid,
     .ex0_resolveValid, .ex0_resolveSnapshot, .ex0_resolveMispredict,
     .cm_commitRd,     .cm_rdIndex,    .cm_rdTag,       .cm_rdOldTag,   .cm_flush,

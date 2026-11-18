@@ -24,6 +24,9 @@ module predecoder_ring (
   logic [30:0]   d_r1_pc, d_r1_branchTarget, d_r1_seq;
   logic [MW-1:0] d_r1_meta;
   logic [4:0]    d_r1_rs1Index, d_r1_rs2Index, d_r1_rdIndex;
+  logic [3:0]    d_r1_rdHi;
+  logic [7:0]    d_r1_rdLo;
+  logic          d_r1_needSnapshot;
   logic          d_r1_rs1Use, d_r1_rs2Use, d_r1_rdWriteEnable;
   logic          d_r1_isBranch, d_r1_isJal, d_r1_isJalr, d_r1_isCall, d_r1_isRet;
 
@@ -40,13 +43,13 @@ module predecoder_ring (
     .d_r1_valid, .d_r1_instr, .d_r1_rvc, .d_r1_pc, .d_r1_meta,
     .d_r1_rs1Index, .d_r1_rs2Index, .d_r1_rdIndex, .d_r1_rs1Use, .d_r1_rs2Use, .d_r1_rdWriteEnable,
     .d_r1_isBranch, .d_r1_isJal, .d_r1_isJalr, .d_r1_isCall, .d_r1_isRet,
-    .d_r1_branchTarget, .d_r1_seq
+    .d_r1_branchTarget, .d_r1_seq, .d_r1_rdHi, .d_r1_rdLo, .d_r1_needSnapshot
   );
 
-  xor_sink #(.W(154)) u_snk (.clk, .q, .d({
+  xor_sink #(.W(167)) u_snk (.clk, .q, .d({
     d_r1_valid, d_r1_instr, d_r1_rvc, d_r1_pc, d_r1_meta,
     d_r1_rs1Index, d_r1_rs2Index, d_r1_rdIndex, d_r1_rs1Use, d_r1_rs2Use, d_r1_rdWriteEnable,
     d_r1_isBranch, d_r1_isJal, d_r1_isJalr, d_r1_isCall, d_r1_isRet,
-    d_r1_branchTarget, d_r1_seq}));
+    d_r1_branchTarget, d_r1_seq, d_r1_rdHi, d_r1_rdLo, d_r1_needSnapshot}));
 
 endmodule

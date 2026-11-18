@@ -5,3 +5,4 @@ build/
 *.log
 obj_dir/
 *.vcd
+test/compliance/src

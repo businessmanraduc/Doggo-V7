@@ -31,11 +31,12 @@ module rename (
   input  logic [4:0]  d_r1_rs1Index,
   input  logic [4:0]  d_r1_rs2Index,
   input  logic [4:0]  d_r1_rdIndex,
+  input  logic [3:0]  d_r1_rdHi,
+  input  logic [7:0]  d_r1_rdLo,
   input  logic        d_r1_rs1Use,
   input  logic        d_r1_rs2Use,
   input  logic        d_r1_rdWriteEnable,
-  input  logic        d_r1_isBranch,
-  input  logic        d_r1_isJalr,
+  input  logic        d_r1_needSnapshot,
   // ---- inter-stage pipeline register controls ----------------------------------
   input  logic        stall_r2_pds,         // PreDS cannot take the register
   output logic        stall_r1_r2,          // to the decoder
@@ -97,7 +98,7 @@ module rename (
   logic [3:0] r1_mask;
   logic r1_r2_valid;
 
-  assign r1_needSnapshot = d_r1_isBranch | d_r1_isJalr;
+  assign r1_needSnapshot = d_r1_needSnapshot;
   assign r1_block        = rn_hold | (r1_needSnapshot & sn_full);
   assign stall_r1_r2     = rd2_skidValid & r1_r2_valid;
   assign stall_d_r1      = stall_r1_r2 | (d_r1_valid & r1_block);
@@ -112,7 +113,7 @@ module rename (
   assign r1_mapBlock = r1_block | stall_r1_r2;
   always_comb
     for (int r = 0; r < 32; r++)
-      r1_mapWrite[r] = d_r1_valid & d_r1_rdWriteEnable & (d_r1_rdIndex == 5'(r)) & !r1_mapBlock;
+      r1_mapWrite[r] = d_r1_rdHi[r / 8] & d_r1_rdLo[r % 8] & d_r1_valid & !r1_mapBlock;
 
   always_comb begin
     r1_freeSnapshot = 2'd0;

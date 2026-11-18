@@ -40,6 +40,8 @@ module predecoder #(
   output logic [4:0]    d_r1_rs1Index,
   output logic [4:0]    d_r1_rs2Index,
   output logic [4:0]    d_r1_rdIndex,
+  output logic [3:0]    d_r1_rdHi,
+  output logic [7:0]    d_r1_rdLo,
   output logic          d_r1_rs1Use,
   output logic          d_r1_rs2Use,
   output logic          d_r1_rdWriteEnable,
@@ -49,7 +51,8 @@ module predecoder #(
   output logic          d_r1_isCall,
   output logic          d_r1_isRet,
   output logic [30:0]   d_r1_branchTarget,  // pc + offset, valid for isBranch and isJal
-  output logic [30:0]   d_r1_seq            // pc + instruction length
+  output logic [30:0]   d_r1_seq,           // pc + instruction length
+  output logic          d_r1_needSnapshot
 );
 
   // ---- 32-bit opcodes (instr[6:2]) ---------------------------------------------
@@ -231,6 +234,8 @@ module predecoder #(
       d_r1_rs1Index      <= d_rs1Index;
       d_r1_rs2Index      <= d_rs2Index;
       d_r1_rdIndex       <= d_rdIndex;
+      for (int r = 0; r < 4; r++) d_r1_rdHi[r] <= d_rdWriteEnable & (d_rdIndex[4:3] == 2'(r));
+      for (int r = 0; r < 8; r++) d_r1_rdLo[r] <= d_rdIndex[2:0] == 3'(r);
       d_r1_rs1Use        <= d_rs1Use;
       d_r1_rs2Use        <= d_rs2Use;
       d_r1_rdWriteEnable <= d_rdWriteEnable;
@@ -241,6 +246,7 @@ module predecoder #(
       d_r1_isRet         <= d_isRet;
       d_r1_branchTarget  <= d_branchTarget;
       d_r1_seq           <= d_seq;
+      d_r1_needSnapshot  <= d_isBranch | d_isJalr;
     end
   end
 

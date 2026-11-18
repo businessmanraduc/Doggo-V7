@@ -11,9 +11,11 @@ module rename_ring (
 
   logic [31:0] s0;
   logic [13:0] s1;
+  logic [11:0] s2;
 
   lfsr_src #(.W(32)) u_s0 (.clk, .perturb(perturb), .q(s0));
   lfsr_src #(.W(14)) u_s1 (.clk, .perturb(s0[0]),   .q(s1));
+  lfsr_src #(.W(12)) u_s2 (.clk, .perturb(s1[0]),   .q(s2));
 
   logic       stall_r1_r2, stall_d_r1, rd2_skidValid;
   logic       r2_pds_valid;
@@ -30,11 +32,12 @@ module rename_ring (
     .d_r1_rs1Index         (s0[5:1]),
     .d_r1_rs2Index         (s0[10:6]),
     .d_r1_rdIndex          (s0[15:11]),
+    .d_r1_rdHi             (s2[3:0]),
+    .d_r1_rdLo             (s2[11:4]),
     .d_r1_rs1Use           (s0[16]),
     .d_r1_rs2Use           (s0[17]),
     .d_r1_rdWriteEnable    (s0[18]),
-    .d_r1_isBranch         (s0[19]),
-    .d_r1_isJalr           (s0[20]),
+    .d_r1_needSnapshot     (s0[19]),
     .stall_r2_pds          (s0[21]),
     .ex0_resolveValid      (s0[22]),
     .ex0_resolveSnapshot   (s0[24:23]),
